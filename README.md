@@ -6,7 +6,7 @@ Arch package, or EteSync through its own local bridge, etesync-dav, which
 keeps the calendars encrypted end to end. One of the Tuatara project's
 packages, not part of the editor.
 
-It needs Tuatara 0.90.10 or newer, and two small programs most Linux
+It needs Tuatara 0.90.13 or newer, and two small programs most Linux
 systems have already: `curl` and `secret-tool`.
 
 ## Setting it up, step by step
@@ -478,6 +478,20 @@ A calendar file comes from elsewhere and is never trusted. Nothing in it is
 run or fetched, and the reader refuses a file larger than 16 MB or with
 components nested more than 20 deep. No more than 10,000 occurrences of one
 event are worked out at once.
+
+## Credits
+
+- RFC 5545 (iCalendar): calendar files, values, rules of recurrence and time
+  zones.
+- RFC 4791 (CalDAV), RFC 6578 (changes since a sync token) and RFC 6764
+  (finding a server's calendars): talking to the server.
+- RFC 6868: parameter values in calendar files.
+- Radicale and EteSync's etesync-dav: the servers it is used with.
+- curl and secret-tool: how it reaches a server and keeps a password.
+
+## License
+
+GPL-3.0-or-later; see `LICENSE` at the top of this repository.
 
 ## Working on it
 
