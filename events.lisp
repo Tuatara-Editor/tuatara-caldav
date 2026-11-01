@@ -14,7 +14,7 @@
 (in-package #:caldav)
 
 (defparameter *uid-property* "UID"
-  "The property of an entry that holds the UID of its event.")
+  "The property of an entry that holds the unique identifier (UID) of its event.")
 
 (defparameter *rule-property* "RRULE"
   "The property of an entry whose times were written out one by one: the
@@ -378,7 +378,7 @@ the universal time FROM below TO; notes are noted at NOW."
         (write-string (description-block description) out)))))
 
 (defun calendar-entries (calendar &rest arguments &key (level 2) zone now from to)
-  "The Org entries of the events and tasks of CALENDAR, a VCALENDAR, each a
+  "The Org entries of the events and tasks of CALENDAR, a calendar (VCALENDAR), each a
 heading of LEVEL stars, as EVENT-ENTRY writes them with ZONE, NOW, FROM and
 TO; how many as a second value."
   (declare (ignore level zone now from to))
@@ -389,12 +389,13 @@ TO; how many as a second value."
 ;;; Entries read back as events
 
 (defun zone-tzid (zone)
-  "The TZID ZONE is written with: its name, when it is a zone's name; NIL when it has none, and times are written in UTC."
+  "The time zone identifier (TZID) ZONE is written with: its name, when it is a zone's name;
+NIL when it has none, and times are written in Coordinated Universal Time (UTC)."
   (let ((name (time-zone-name zone)))
     (and name (zone-name-p name) name)))
 
 (defun local-ical-time (local zone)
-  "The local time LOCAL on ZONE's clock as an ICAL-TIME: in ZONE by its name, else in UTC."
+  "The local time LOCAL on ZONE's clock as an ICAL-TIME: in ZONE by its name, else in Coordinated Universal Time (UTC)."
   (let ((tzid (zone-tzid zone)))
     (if tzid
         (make-ical-time (floor local 86400) (mod local 86400) tzid)
@@ -402,12 +403,12 @@ TO; how many as a second value."
           (universal-ical-time universal)))))
 
 (defun ts-local (ts)
-  "TS's start as a local time, midnight when it has no time."
+  "The start of the timestamp (TS) as a local time, midnight when it has no time."
   (+ (* 86400 (org-ts-day-number ts)) (* 3600 (or (org-ts-hour ts) 0)) (* 60 (or (org-ts-minute ts) 0))))
 
 (defun timing-of-stamp (text zone)
   "The properties saying the times of TEXT, a timestamp or a range of two, on
-ZONE's clock: DTSTART, DTEND, and RRULE for a repeater; NIL when TEXT is none."
+ZONE's clock: start (DTSTART), end (DTEND), and recurrence rule (RRULE) for a repeater; NIL when TEXT is none."
   (multiple-value-bind (ts until) (stamp-ends text)
     (when ts
       (append
@@ -494,7 +495,7 @@ gives, or NIL for each; NIL when no rule of recurrence says it."
 
 (defun timing-of-rule (text zone today agreed-start)
   "The properties saying the times of TEXT, a timestamp by rule, on ZONE's
-clock: DTSTART, DTEND and RRULE, the first time that of its range of days,
+clock: start (DTSTART), end (DTEND) and recurrence rule (RRULE), the first time that of its range of days,
 else AGREED-START (a day number) when the rule takes it, else the first the
 rule takes from the day number TODAY; NIL when no rule of recurrence says it."
   (let ((rule (org-read-rule text)))
@@ -536,7 +537,7 @@ rule takes from the day number TODAY; NIL when no rule of recurrence says it."
     (and value (agenda-unguarded value))))
 
 (defun uid-day (uid text)
-  "The UID of the event of TEXT, a timestamp of an entry whose UID is UID
+  "The unique identifier (UID) of the event of TEXT, a timestamp of an entry whose UID is UID
 other than its first: UID and the day it says (UID-20261103)."
   (let ((ts (stamp-ends text)))
     (if ts
@@ -576,12 +577,13 @@ MANAGED's others after."
             (remove-if (lambda (p) (member (ical-property-name p) placed :test #'string-equal)) managed))))
 
 (defun agreed-members (agreed uid)
-  "The components of AGREED, a VCALENDAR or NIL, of UID: the one recurring first, those changing it after."
+  "The components of AGREED, a calendar (VCALENDAR) or NIL, of the unique identifier (UID) UID:
+the one recurring first, those changing it after."
   (and agreed (group-of-uid agreed uid)))
 
 (defun agreed-times-hold-p (members agreed zone stamp cancelled moved)
   "True when MEMBERS, an event as agreed with the calendar (of AGREED, its
-VCALENDAR), says the same times as an entry with the timestamp STAMP and the
+calendar (VCALENDAR)), says the same times as an entry with the timestamp STAMP and the
 times CANCELLED and MOVED (ORG-OCCURRENCE-NOTES): as Org would write them."
   (let* ((master (first members))
          (said (org-times-of master (rest members) (calendar-zones agreed) zone 0)))
@@ -593,7 +595,7 @@ times CANCELLED and MOVED (ORG-OCCURRENCE-NOTES): as Org would write them."
                   (null (set-exclusive-or m moved :test #'equal))))))))
 
 (defun new-uid ()
-  "A UID for an event made here, no other like it."
+  "A unique identifier (UID) for an event made here, no other like it."
   (format nil "~(~a~)@tuatara" (random-name)))
 
 (defun stamp-ends (text)
@@ -612,13 +614,13 @@ second, or NIL for a single one (ORG-READ-TS each)."
 (defun entry-components (entry &key agreed uid (zone (system-time-zone)) (now (get-universal-time)))
   "The events or the task ENTRY, an agenda entry (ORG-AGENDA-FILE-ENTRIES),
 says, on ZONE's clock: a list of components, each event's changes of its
-occurrences after it. Its UID property names the event of its first time;
-another time is another event, its UID that and the day. AGREED, a VCALENDAR
+occurrences after it. Its unique identifier (UID) property names the event of its first time;
+another time is another event, its UID that and the day. AGREED, a calendar (VCALENDAR)
 holding the events as the calendar last had them, gives what an entry does
 not say: the properties it keeps, the categories as written, and the times of
 an event whose times the entry does not say (written out, or said as the
 calendar said them). UID, when given, is the UID of an entry that has none
-yet (NEW-UID); DTSTAMP is NOW."
+yet (NEW-UID); time stamp (DTSTAMP) is NOW."
   (let* ((uid (one-line (or (entry-property entry *uid-property*) uid (new-uid))))
          (local-tags (agenda-entry-local-tags entry))
          (cancelled-tag (member *cancelled-tag* local-tags :test #'string=))
@@ -748,13 +750,13 @@ yet (NEW-UID); DTSTAMP is NOW."
                                                                                                               (make-ical-time (floor l 86400) (mod l 86400) (ical-time-zone new))))))))))))))))))))))
 
 (defun entry-calendar (entry &rest arguments &key agreed uid zone now)
-  "A VCALENDAR of what ENTRY says (ENTRY-COMPONENTS, with AGREED, UID, ZONE
+  "A calendar (VCALENDAR) of what ENTRY says (ENTRY-COMPONENTS, with AGREED, the unique identifier (UID), ZONE
 and NOW), as COMPONENTS-CALENDAR makes one."
   (declare (ignore uid zone now))
   (components-calendar (apply #'entry-components entry arguments) agreed))
 
 (defun components-calendar (components agreed)
-  "A VCALENDAR of COMPONENTS, with the VTIMEZONE of each zone their times
+  "A calendar (VCALENDAR) of COMPONENTS, with the time zone (VTIMEZONE) of each zone their times
 name: AGREED's own (a VCALENDAR, or NIL), else one written from the system's
 zone of that name."
   (let* ((tzids (remove-duplicates

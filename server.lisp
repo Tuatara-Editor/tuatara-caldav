@@ -26,7 +26,8 @@
 (define-condition caldav-error (error)
   ((text :initarg :text :reader caldav-error-text))
   (:report (lambda (condition stream) (write-string (caldav-error-text condition) stream)))
-  (:documentation "A server not reached, refusing, or answering what is no CalDAV: what went wrong, in words."))
+  (:documentation "A server not reached, refusing, or answering what is no Calendaring Extensions to
+WebDAV (CalDAV): what went wrong, in words."))
 
 (setf (documentation 'caldav-error-text 'function) "What went wrong with a server, in words.")
 
@@ -37,7 +38,7 @@
 ;;; Addresses
 
 (defun url-parts (url)
-  "URL's scheme (http or https, in small letters), its host with its port, and
+  "The scheme (http or https, in small letters), the host with its port, and
 the rest (its path, at least /), as three values; NIL when it is no web address."
   (multiple-value-bind (match groups) (cl-ppcre:scan-to-strings "^(?i)(https?)://([^/?#\\s]+)([^\\s]*)$" url)
     (and match (values (string-downcase (aref groups 0)) (aref groups 1)
@@ -49,12 +50,12 @@ the rest (its path, at least /), as three values; NIL when it is no web address.
     (member name '("localhost" "127.0.0.1" "[::1]") :test #'string=)))
 
 (defun url-allowed-p (url)
-  "True when URL may be reached: https, or http to this machine alone."
+  "True when the web address (URL) may be reached: https, or http to this machine alone."
   (multiple-value-bind (scheme host) (url-parts url)
     (and scheme (or (string= scheme "https") (own-machine-p host)))))
 
 (defun url-joined (base href)
-  "HREF, an address a server gave in answer to BASE, made whole: as it is when
+  "The hypertext reference (HREF), an address a server gave in answer to BASE, made whole: as it is when
 it has a scheme, on BASE's host when it begins with /, else beside BASE's path."
   (cond ((url-parts href) href)
         (t (multiple-value-bind (scheme host path) (url-parts base)
@@ -63,7 +64,7 @@ it has a scheme, on BASE's host when it begins with /, else beside BASE's path."
                  (format nil "~a://~a~a~a" scheme host (subseq path 0 (1+ (or (position #\/ path :from-end t) -1))) href))))))
 
 (defun url-path (url)
-  "URL's path, as a server names its resources."
+  "The path of the web address (URL), as a server names its resources."
   (nth-value 2 (url-parts url)))
 
 ;;; Requests
@@ -89,7 +90,7 @@ names in small letters."
                                    (string-trim '(#\Space #\Tab #\Return) (subseq line (1+ colon)))))))
 
 (defun curl-request (method url &key headers body user password)
-  "Make the request METHOD to URL with curl, HEADERS (an alist) and BODY (text,
+  "Make the request METHOD to web address (URL) with curl, HEADERS (an alist) and BODY (text,
 or NIL) with it, signed in as USER with PASSWORD, given on curl's standard
 input: three values, the answer's status, its headers and its body."
   (let ((curl (find-program "curl")))
@@ -130,7 +131,7 @@ input: three values, the answer's status, its headers and its body."
         (ignore-errors (delete-tree folder))))))
 
 (defun request (account method url &key headers body (redirects *most-redirects*))
-  "Make the request METHOD to URL for ACCOUNT, as *TRANSPORT* does, following
+  "Make the request METHOD to web address (URL) for ACCOUNT, as *TRANSPORT* does, following
 redirects to addresses that may be reached, and with ACCOUNT's password
 only to its own server: three values, the answer's
 status, its headers and its body, and the address answering as a fourth."
@@ -158,7 +159,7 @@ status, its headers and its body, and the address answering as a fourth."
 ;;; Answers
 
 (defun element-text (element)
-  "The text of the XML ELEMENT and all under it, blanks about it left out."
+  "The text of the Extensible Markup Language (XML) ELEMENT and all under it, blanks about it left out."
   (string-trim '(#\Space #\Newline #\Tab #\Return) (xml-all-text element)))
 
 (defun multistatus-responses (text)
@@ -185,7 +186,7 @@ status is not 2xx left out; and the answer's root element as a second value."
      root)))
 
 (defun status-number (line)
-  "The number of LINE, an HTTP status line (HTTP/1.1 200 OK), or NIL."
+  "The number of LINE, a Hypertext Transfer Protocol (HTTP) status line (HTTP/1.1 200 OK), or NIL."
   (let ((match (nth-value 1 (cl-ppcre:scan-to-strings "\\s(\\d{3})(\\s|$)" (concatenate 'string " " line)))))
     (and match (parse-integer (aref match 0)))))
 
@@ -223,7 +224,7 @@ status is not 2xx left out; and the answer's root element as a second value."
   "The request for the calendars in a folder, their names and what they hold.")
 
 (defun propfind (account url body depth)
-  "The responses to a PROPFIND of BODY at URL, DEPTH deep (0 or 1), for
+  "The responses to a property find (PROPFIND) of BODY at web address (URL), DEPTH deep (0 or 1), for
 ACCOUNT, and the address that answered."
   (multiple-value-bind (status headers answer at)
       (request account "PROPFIND" url :headers `(("Depth" . ,(princ-to-string depth))
@@ -235,7 +236,7 @@ ACCOUNT, and the address that answered."
     (values (multistatus-responses answer) at)))
 
 (defun account-home (account)
-  "The address of ACCOUNT's calendars, as its server says (RFC 6764): its
+  "The address of ACCOUNT's calendars, as its server says (Request for Comments (RFC) 6764): its
 principal from the account's address, or from /.well-known/caldav, then the
 principal's calendar home."
   (let ((url (getf account :url)))
@@ -278,7 +279,7 @@ gave them."
 ;;; What changed
 
 (defun sync-collection-body (token)
-  "The request for what changed in a calendar since TOKEN (NIL for all), RFC 6578."
+  "The request for what changed in a calendar since TOKEN (NIL for all), Request for Comments (RFC) 6578."
   (format nil "<?xml version=\"1.0\" encoding=\"utf-8\"?>
 <d:sync-collection xmlns:d=\"DAV:\"><d:sync-token>~@[~a~]</d:sync-token><d:sync-level>1</d:sync-level><d:prop><d:getetag/></d:prop></d:sync-collection>"
           (and token (xml-escape token))))
@@ -286,7 +287,7 @@ gave them."
 (defun calendar-changes (account calendar token)
   "What changed in CALENDAR (a plist of ACCOUNT-CALENDARS) since TOKEN, a sync
 token, NIL for everything: three values, the events there now or changed,
-each (ADDRESS . ETAG), the addresses of events gone, and the new token. NIL
+each (ADDRESS . ETAG) of an address and its entity tag (ETAG), the addresses of events gone, and the new token. NIL
 for the first two and :NONE for the token when the server keeps no tokens or
 refuses this one; NIL for the token when the server gives an empty one."
   (multiple-value-bind (status headers answer)
@@ -309,7 +310,8 @@ refuses this one; NIL for the token when the server gives an empty one."
         (values nil nil :none))))
 
 (defun calendar-etags (account calendar)
-  "Every event of CALENDAR now, each (ADDRESS . ETAG), by a PROPFIND: for a
+  "Every event of CALENDAR now, each (ADDRESS . ETAG) of an address and its entity tag (ETAG), by a
+property find (PROPFIND): for a
 server that keeps no sync tokens."
   (loop for response in (propfind account (getf calendar :url)
                                   "<?xml version=\"1.0\" encoding=\"utf-8\"?>
@@ -326,7 +328,7 @@ server that keeps no sync tokens."
           (mapcar (lambda (url) (xml-escape (url-path url))) urls)))
 
 (defun fetch-events (account calendar urls)
-  "The events at URLS in CALENDAR, each (ADDRESS ETAG TEXT), TEXT the calendar
+  "The events at URLS in CALENDAR, each (ADDRESS ETAG TEXT) of an address, its entity tag (ETAG) and TEXT, the calendar
 file as the server keeps it: fetched *MULTIGET-SIZE* at a time, or one by
 one from a server that will not."
   (loop for rest on urls by (lambda (l) (nthcdr *multiget-size* l))
@@ -349,8 +351,8 @@ one from a server that will not."
 ;;; Sending
 
 (defun put-event (account url text etag)
-  "Put TEXT, a calendar file of one event, at URL for ACCOUNT: in place of the
-copy ETAG names, or as a new event when ETAG is NIL. Two values: :DONE and the
+  "Put TEXT, a calendar file of one event, at web address (URL) for ACCOUNT: in place of the
+copy entity tag (ETAG) names, or as a new event when ETAG is NIL. Two values: :DONE and the
 new ETAG (NIL when the server says none), :CHANGED when the server's copy
 changed since, or :REFUSED and the status."
   (multiple-value-bind (status headers)
@@ -363,7 +365,7 @@ changed since, or :REFUSED and the status."
           (t (values :refused status)))))
 
 (defun delete-event (account url etag)
-  "Delete the event at URL for ACCOUNT, if its copy is still the one ETAG
+  "Delete the event at web address (URL) for ACCOUNT, if its copy is still the one entity tag (ETAG)
 names: :DONE (gone already too), :CHANGED, or :REFUSED and the status."
   (let ((status (request account "DELETE" url :headers (and etag `(("If-Match" . ,etag))))))
     (cond ((or (ok-status-p status) (eql status 404)) :done)

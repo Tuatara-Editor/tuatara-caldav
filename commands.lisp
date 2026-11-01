@@ -24,7 +24,7 @@ changed."
 
 (defun account-of (url)
   "The account of *CALDAV-ACCOUNTS* whose server holds the calendar at
-URL: the one on its host, else the first."
+web address (URL): the one on its host, else the first."
   (let ((host (nth-value 1 (url-parts url))))
     (or (find-if (lambda (a) (equal (nth-value 1 (url-parts (getf a :url))) host)) *caldav-accounts*)
         (first *caldav-accounts*))))
@@ -82,7 +82,7 @@ for a sync started on its own, which says nothing when nothing changed."
   :left-words "nothing written")
 
 (defmacro with-signed-in ((var account) &body body)
-  "Run BODY with VAR, ACCOUNT signed in (SIGNED-IN); its password wiped from
+  "Run BODY with the variable (VAR) holding ACCOUNT signed in (SIGNED-IN); its password wiped from
 memory when BODY ends, however it ends."
   `(let ((,var (signed-in ,account)))
      (unwind-protect (progn ,@body)
@@ -164,7 +164,7 @@ next, (FAILURES . MISSING): said again only when it changes.")
       (tell-failures "Calendars not all synced" new-failures))))
 
 (define-command caldav-sync ()
-  "Sync the calendars of your CalDAV accounts (*caldav-accounts*) with
+  "Sync the calendars of your Calendaring Extensions to WebDAV (CalDAV) accounts (*caldav-accounts*) with
 the calendars' Org file (*caldav-file*), a heading each: what changed
 in an entry here is sent, what changed on the server is written into its
 entry, your own lines in it kept, and new events are added under their
@@ -266,7 +266,8 @@ Tuatara reaches the server, and what it finds there. In the background."
 
 (defun missing-events ()
   "The events the calendars' file no longer has an entry of, under a
-calendar's heading that is there: each (FOLDER AGREED URL), URL the calendar's."
+calendar's heading that is there: each a folder, an agreed event and the
+calendar's web address (URL), as (FOLDER AGREED URL)."
   (let* ((text (buffer-string (calendars-buffer)))
          (sections (calendar-sections text (file-entries text))))
     (loop for section in sections
@@ -351,7 +352,8 @@ the server has them."
 ;;; Calendar files
 
 (defun calendar-headings (text)
-  "The calendars' headings of TEXT, the calendars' file, each (TITLE . URL)."
+  "The calendars' headings of TEXT, the calendars' file, each a title and the calendar's web address
+(URL), as (TITLE . URL)."
   (loop for section in (calendar-sections text (file-entries text))
         collect (cons (agenda-entry-title (getf section :entry)) (getf section :url))))
 
@@ -360,7 +362,7 @@ the server has them."
 
 (defstruct (calendar-import-job (:include job) (:constructor make-calendar-import-job (buffer path url)) (:copier nil))
   "Reading the calendar file at PATH into the calendars' file, under the
-calendar at URL (NIL for a heading of its own): ENTRIES, its events as Org
+calendar at the web address (URL), NIL for a heading of its own: ENTRIES, its events as Org
 entries; COUNT, how many; FAILED, what went wrong, in words."
   path url entries (count 0) failed)
 

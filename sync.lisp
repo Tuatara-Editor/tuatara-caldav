@@ -48,7 +48,7 @@ TEXT after them, so that two texts alike there are two names."
     (format nil "~a-~36r" (subseq name 0 (min 100 (length name))) (string-hash text))))
 
 (defun calendar-folder (url)
-  "The folder in the state directory that keeps what the calendar at URL last agreed with its server."
+  "The folder in the state directory that keeps what the calendar at web address (URL) last agreed with its server."
   (private-state-directory (format nil "calendars/~a/" (safe-name url))))
 
 (defun subscription-path (subscription)
@@ -78,8 +78,8 @@ a few seconds have gone."
 ;;; What a calendar last agreed with its server
 
 (defstruct (agreed (:constructor make-agreed (url etag file uid)))
-  "An event as its calendar last agreed with the server: its URL, its ETAG,
-the FILE its copy is kept in, and its UID."
+  "An event as its calendar last agreed with the server: its web address (URL), its entity tag (ETAG),
+the FILE its copy is kept in, and its unique identifier (UID)."
   url etag file uid)
 
 (defun read-calendar-state (folder)
@@ -112,7 +112,7 @@ token (NIL for none), and its events, a list of AGREED."
                 :mode #o600))
 
 (defun agreed-calendar (folder event)
-  "The copy of EVENT (an AGREED) kept in FOLDER, read as a VCALENDAR, or NIL."
+  "The copy of EVENT (an AGREED) kept in FOLDER, read as a calendar (VCALENDAR), or NIL."
   (let ((text (ignore-errors (file-text (path-join folder (agreed-file event)) :limit *icalendar-largest*))))
     (and text (first (ignore-errors (icalendar-read text))))))
 
@@ -126,7 +126,7 @@ token (NIL for none), and its events, a list of AGREED."
   "The calendars of TEXT, whose ENTRIES are given: each a plist, :URL, :ENTRY
 \(its heading's), :END (where its headings end in TEXT), :EVENTS (the
 entries of its events, the headings right under it) and :BY-UID (a table of
-them by their UID)."
+them by their unique identifier (UID))."
   (let ((tops (remove-if-not (lambda (e) (= 1 (agenda-entry-level e))) entries)))
     (loop for (top next) on tops
           for url = (entry-property top *calendar-property*)
@@ -142,11 +142,11 @@ them by their UID)."
                       (list :url url :entry top :end end :events events :by-uid by-uid)))))
 
 (defun section-of (sections url)
-  "The calendar of SECTIONS whose address is URL, or NIL."
+  "The calendar of SECTIONS whose address is web address (URL), or NIL."
   (find url sections :key (lambda (s) (getf s :url)) :test #'string=))
 
 (defun entry-of-uid (section uid)
-  "The entry of SECTION's events whose UID is UID, or NIL."
+  "The entry of SECTION's events whose unique identifier (UID) is UID, or NIL."
   (gethash uid (getf section :by-uid)))
 
 ;;; Your lines in an entry, kept when the server's version is written
@@ -234,14 +234,15 @@ in it are kept."
                                       (t (cl-ppcre:regex-replace-all "<((?:\\d{4}-|%%\\()[^>]*)>" line "[\\1]"))))))))
 
 (defun without-uid (text)
-  "TEXT, an entry, without its UID property, its property drawer gone when
+  "TEXT, an entry, without its unique identifier (UID) property, its property drawer gone when
 nothing is left in it: a copy that is no event's."
   (cl-ppcre:regex-replace-all "(?mi)^[ \\t]*:PROPERTIES:[ \\t]*\\n[ \\t]*:END:[ \\t]*\\n"
                           (cl-ppcre:regex-replace-all (format nil "(?mi)^[ \\t]*:~a:.*\\n" *uid-property*) text "")
                           ""))
 
 (defun with-uid (text uid)
-  "TEXT, an entry, with UID as its UID property, in its property drawer, made after its heading and planning when it has none."
+  "TEXT, an entry, with the unique identifier (UID) UID as its UID property, in its property drawer, made after
+its heading and planning when it has none."
   (if (cl-ppcre:scan "(?mi)^[ \\t]*:PROPERTIES:[ \\t]*$" text)
       (cl-ppcre:regex-replace-all "(?mi)^([ \\t]*:PROPERTIES:[ \\t]*\\n)" text (format nil "\\1:~a: ~a~%" *uid-property* (field uid)))
       (let* ((first-end (or (position #\Newline text) (length text)))
@@ -260,7 +261,7 @@ nothing is left in it: a copy that is no event's."
 
 (defun said-lines (components)
   "COMPONENTS, events, as what they say, to compare: each property a line,
-DTSTAMP and SEQUENCE left out, words compared as words, sorted."
+time stamp (DTSTAMP) and SEQUENCE left out, words compared as words, sorted."
   (sort (loop for c in components
               nconc (cons (format nil "~a ~a" (ical-component-name c) (or (ical-value-of c "RECURRENCE-ID") ""))
                           (loop for p in (ical-component-properties c)
@@ -282,11 +283,13 @@ DTSTAMP and SEQUENCE left out, words compared as words, sorted."
 ;;; A sync
 
 (defstruct (calendar-pass (:constructor make-calendar-pass (url name folder)))
-  "What one sync did with the calendar at URL, called NAME, whose state is in
+  "What one sync did with the calendar at web address (URL), called NAME, whose state is in
 FOLDER: INCOMING, the events to write into its entries, each (UID TEXT
-CONFLICT), TEXT the entry as EVENT-ENTRY writes it and CONFLICT your copy of
+CONFLICT) of the unique identifier (UID) of the event, TEXT the entry as
+EVENT-ENTRY writes it and CONFLICT your copy of
 the entry when it changed here too; GONE, the UIDs deleted on the server;
-CANCELLED, the UIDs of entries cancelled here whose events were deleted there; NEW-UIDS, the entries sent as new events, each (HEADING UID); TOKEN and
+CANCELLED, the UIDs of entries cancelled here whose events were deleted there;
+NEW-UIDS, the entries sent as new events, each (HEADING UID); TOKEN and
 EVENTS, its state once written; SENT and FETCHED, how many; MISSING, how
 many events have no entry any more (deleted here); FAILED, what the server
 refused, in words."
@@ -306,7 +309,7 @@ refused, in words."
   (let ((text (entry-text entry))) (subseq text 0 (or (position #\Newline text) (length text)))))
 
 (defun event-url (calendar-url uid)
-  "The address a new event of UID is put at in the calendar at CALENDAR-URL."
+  "The address a new event of unique identifier (UID) is put at in the calendar at CALENDAR-URL."
   (format nil "~a~:[/~;~]~a.ics" calendar-url (uiop:string-suffix-p calendar-url "/") (safe-name uid)))
 
 (defparameter *most-fetched* 2000

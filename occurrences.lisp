@@ -22,7 +22,8 @@ for a component that does not recur."
   (recurrence-id nil))
 
 (defun time-zone-of (time zones floating)
-  "The time zone TIME, an ICAL-TIME, is in: UTC, the zone ZONES gives for its TZID, or FLOATING for a floating time or a TZID of no zone."
+  "The time zone TIME, an ICAL-TIME, is in: Coordinated Universal Time (UTC), the zone ZONES gives for
+its time zone identifier (TZID), or FLOATING for a floating time or a TZID of no zone."
   (let ((zone (ical-time-zone time)))
     (cond ((eq zone :utc) (fixed-time-zone 0 "UTC"))
           ((stringp zone) (or (funcall zones zone) floating))
@@ -63,7 +64,7 @@ seconds (whole days for a date): three values; NIL when it has no start."
   "The components of a calendar that are its events and tasks.")
 
 (defun uid-groups (calendar &optional (kinds *event-kinds*))
-  "The components of CALENDAR of KINDS by UID, in the order first met: a list
+  "The components of CALENDAR of KINDS by unique identifier (UID), in the order first met: a list
 of lists, each the one recurring first and those changing its occurrences after."
   ;; each UID's (MASTERS . CHANGES), both in reverse, put in order once at the end
   (let ((groups (make-hash-table :test 'equal)) (order '()))
@@ -80,7 +81,7 @@ of lists, each the one recurring first and those changing its occurrences after.
           collect (append masters (nreverse changes)))))
 
 (defun group-of-uid (calendar uid)
-  "The components of CALENDAR of UID (UID-GROUPS), or NIL."
+  "The components of CALENDAR of unique identifier (UID) (UID-GROUPS), or NIL."
   (find uid (uid-groups calendar) :key (lambda (members) (ical-value-of (first members) "UID")) :test #'equal))
 
 (defun calendar-events (calendar)
@@ -89,7 +90,7 @@ of lists, each the one recurring first and those changing its occurrences after.
                  (ical-components-of calendar)))
 
 (defun icalendar-occurrences (calendars from to &key (zone (system-time-zone)) (kinds *event-kinds*))
-  "The occurrences of the components of CALENDARS (a VCALENDAR or a list of
+  "The occurrences of the components of CALENDARS (a calendar (VCALENDAR) or a list of
 them) of KINDS that overlap the universal times FROM to TO, as
 ICAL-OCCURRENCE structures in order of their start. Floating times and
 dates alone are counted on ZONE's clock. A component cancelled is given too;

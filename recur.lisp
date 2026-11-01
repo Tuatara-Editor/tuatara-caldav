@@ -36,7 +36,8 @@ the first week with four of its days or more in YEAR."
 
 (defun day-allowed (recur day year days &key month-days week-days)
   "True when the BY- parts of the day of RECUR allow DAY in the period of
-year YEAR: BYMONTH, BYWEEKNO, BYYEARDAY, BYMONTHDAY and BYDAY. DAYS are
+year YEAR: month part (BYMONTH), week number part (BYWEEKNO), day of the year part (BYYEARDAY), day of
+the month part (BYMONTHDAY) and weekday part (BYDAY). DAYS are
 RECUR's BY-DAY as used, MONTH-DAYS its BY-MONTH-DAY as used, WEEK-DAYS the
 weekdays any ordinal allows."
   (multiple-value-bind (y m d) (day-date day)

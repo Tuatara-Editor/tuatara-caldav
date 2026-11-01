@@ -14,7 +14,7 @@
   "The last year a time zone's changes are worked out to when its rules are none a yearly rule can say.")
 
 (defun rule-day-of-recur (recur)
-  "The day of a ZONE-RULE that RECUR, a rule of a VTIMEZONE observance, says:
+  "The day of a ZONE-RULE that RECUR, a rule of a time zone (VTIMEZONE) observance, says:
 yearly in one month on the Nth or last weekday, or on the weekday of seven
 days in a row beginning on the 1st, 8th, 15th or 22nd; NIL for any other."
   (let ((months (ical-recur-by-month recur)) (days (ical-recur-by-day recur)) (month-days (ical-recur-by-month-day recur)))
@@ -32,13 +32,13 @@ days in a row beginning on the 1st, 8th, 15th or 22nd; NIL for any other."
                    (list :month (first months) (1+ (floor low 7)) wd)))))))))
 
 (defparameter *longest-zone-name* 200
-  "The longest name of a time zone looked for: a TZID longer is no zone's.")
+  "The longest name of a time zone looked for: a time zone identifier (TZID) longer is no zone's.")
 
 (defparameter *most-observances* 100
-  "The most observances (STANDARD and DAYLIGHT) of one VTIMEZONE read; the rest are passed over.")
+  "The most observances (STANDARD and DAYLIGHT) of one time zone (VTIMEZONE) read; the rest are passed over.")
 
 (defun vtimezone-zone (component)
-  "The time zone COMPONENT, a VTIMEZONE, says, named by its TZID; NIL when it
+  "The time zone COMPONENT, a time zone (VTIMEZONE), says, named by its time zone identifier (TZID); NIL when it
 says none. *MOST-OBSERVANCES* of it are read at most."
   (let ((observances '()))
     (dolist (o (let ((all (ical-components-of component))) (subseq all 0 (min (length all) *most-observances*))))
@@ -93,13 +93,13 @@ says none. *MOST-OBSERVANCES* of it are read at most."
                          rule)))))
 
 (defun calendar-vtimezone (calendar tzid)
-  "CALENDAR's own VTIMEZONE whose TZID is TZID, or NIL."
+  "CALENDAR's own time zone (VTIMEZONE) whose time zone identifier (TZID) is TZID, or NIL."
   (find tzid (ical-components-of calendar "VTIMEZONE")
         :key (lambda (c) (ical-text (or (ical-value-of c "TZID") ""))) :test #'string=))
 
 (defun calendar-zones (calendar)
-  "A function of a TZID's name giving the time zone it names in CALENDAR, a
-VCALENDAR: its own VTIMEZONE of that name first, then the system's zone of
+  "A function of the name in a time zone identifier (TZID) giving the time zone it names in CALENDAR, a
+calendar (VCALENDAR): its own time zone (VTIMEZONE) of that name first, then the system's zone of
 that name, or of the name's end (/mozilla.org/20050126_1/Europe/Stockholm is
 Europe/Stockholm); NIL for a name of no zone. Each zone is read once."
   (let ((own (make-hash-table :test 'equal)) (read (make-hash-table :test 'equal)))
@@ -122,13 +122,14 @@ Europe/Stockholm); NIL for a name of no zone. Each zone is read once."
 ;;; Written
 
 (defun rule-day-recur (day)
-  "The rule of recurrence of a VTIMEZONE observance for DAY, a ZONE-RULE's day: an ICAL-RECUR, or NIL for one it cannot say."
+  "The rule of recurrence of a time zone (VTIMEZONE) observance for DAY, a ZONE-RULE's day: an
+ICAL-RECUR, or NIL for one it cannot say."
   (when (eq (first day) :month)
     (destructuring-bind (month week wd) (rest day)
       (make-ical-recur :yearly :by-month (list month) :by-day (list (cons (if (= week 5) -1 week) wd))))))
 
 (defun zone-vtimezone (zone &key (first-year 1970) (last-year *zone-years*))
-  "A VTIMEZONE component for ZONE, a time zone with a name, from its yearly
+  "A time zone (VTIMEZONE) component for ZONE, a time zone with a name, from its yearly
 rule: an observance for standard time, and one for summer time when it has
 it, by rule, or by dates FIRST-YEAR to LAST-YEAR where no rule can say it."
   (let ((rule (time-zone-rule zone))
