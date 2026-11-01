@@ -355,7 +355,7 @@ the server has them."
   "The calendars' headings of TEXT, the calendars' file, each a title and the calendar's web address
 (URL), as (TITLE . URL)."
   (loop for section in (calendar-sections text (file-entries text))
-        collect (cons (agenda-entry-title (getf section :entry)) (getf section :url))))
+        collect (cons (entry-field (getf section :entry) :title) (getf section :url))))
 
 (defparameter *not-synced* "Not synced: under a heading of its own"
   "The choice of CALDAV-IMPORT that puts what it reads under a heading of its own.")
@@ -428,11 +428,11 @@ tags and description."
          (chosen (if region
                      (let ((from (length (buffer-string buffer :end (first region))))
                            (to (length (buffer-string buffer :end (second region)))))
-                       (remove-if-not (lambda (e) (and (< (agenda-entry-position e) to) (> (agenda-entry-end e) from))) entries))
+                       (remove-if-not (lambda (e) (and (< (entry-field e :position) to) (> (entry-field e :end) from))) entries))
                      (let* ((at (length (buffer-string buffer :end (buffer-point buffer))))
-                            (here (find-if (lambda (e) (<= (agenda-entry-position e) at)) entries :from-end t)))
+                            (here (find-if (lambda (e) (<= (entry-field e :position) at)) entries :from-end t)))
                        (and here (cons here (loop for e in (rest (member here entries))
-                                                  while (> (agenda-entry-level e) (agenda-entry-level here))
+                                                  while (> (entry-field e :level) (entry-field here :level))
                                                   collect e))))))
          (calendars (loop for e in chosen
                           for c = (ignore-errors (entry-calendar e))
