@@ -969,6 +969,33 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
        (error "midway")))
     (true (every (lambda (c) (char= c (code-char 0))) kept))))
 
+(define-test (caldav password-kept-out-of-the-debug-log)
+  ;; a failure while signed in is logged by its kind alone: no password, no call's arguments
+  (let ((log (merge-pathnames (format nil "tuatara-cs-debug-~d.log" (sb-posix:getpid)) (uiop:temporary-directory))))
+    (unwind-protect
+         (let ((tuatara.runtime:*debug-log-path* (namestring log))
+               (tuatara.runtime::*debug-log-begun* nil)
+               (caldav::*transport* (lambda (method url &rest r)
+                                      (declare (ignore method r))
+                                      (tuatara:ignoring-errors-reported ("answering ~a" url)
+                                        (error "the stand-in server broke on ~a" url))
+                                      (values 500 '() ""))))
+           (clrhash tuatara.runtime::*error-report-places*)
+           (tuatara.runtime:set-debug t)
+           (caldav::with-signed-in (signed '(:name "Home" :url "https://cal.example.org/" :user "kiwi"
+                                             :password-command "printf kiwi-fake-pass"))
+             (is = 500 (caldav::request signed "PROPFIND" "https://cal.example.org/kiwi/")))
+           (tuatara.runtime:set-debug nil)
+           (let ((written (file-text log)))
+             (true (search "failed: a simple-error" written) "~a" written)
+             (false (search "kiwi-fake-pass" written) "~a" written)
+             (false (search "cal.example.org" written) "~a" written)
+             (false (search "the stand-in server broke" written) "~a" written)))
+      (tuatara.runtime:set-debug nil)
+      (loop while (sb-concurrency:dequeue tuatara.runtime:*debug-reports*))
+      (dolist (type '("log" "log.1" "log.2" "log.3"))
+        (uiop:delete-file-if-exists (make-pathname :type type :defaults log))))))
+
 (define-test (caldav syncs-on-their-own)
   (let ((started '())
         (caldav::*next-sync* nil)

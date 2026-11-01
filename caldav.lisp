@@ -1,6 +1,6 @@
 ;;;; caldav.lisp --- The caldav package: the agenda shared with other calendars over CalDAV.
 ;;;; Copyright (C) 2026 Michael A Jones.  GPL-3.0-or-later; see LICENSE.
-;;;; Needs: Tuatara 0.90.13
+;;;; Needs: Tuatara 0.90.14
 ;;;;
 ;;;; One line in the init file loads it: (load-package "caldav").
 

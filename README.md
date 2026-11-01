@@ -6,7 +6,7 @@ Arch package, or EteSync through its own local bridge, etesync-dav, which
 keeps the calendars encrypted end to end. One of the Tuatara project's
 packages, not part of the editor.
 
-It needs Tuatara 0.90.13 or newer, and two small programs most Linux
+It needs Tuatara 0.90.14 or newer, and two small programs most Linux
 systems have already: `curl` and `secret-tool`.
 
 ## Setting it up, step by step

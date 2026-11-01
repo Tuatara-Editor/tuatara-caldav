@@ -83,8 +83,11 @@ for a sync started on its own, which says nothing when nothing changed."
 
 (defmacro with-signed-in ((var account) &body body)
   "Run BODY with the variable (VAR) holding ACCOUNT signed in (SIGNED-IN); its password wiped from
-memory when BODY ends, however it ends."
-  `(let ((,var (signed-in ,account)))
+memory when BODY ends, however it ends. Meanwhile the password is a secret at hand
+\(*SECRET-AT-HAND*), from asking for it on, in the threads started from BODY too: a failure is
+written to the debug log by its kind alone, without the calls under way or what they were given."
+  `(let* ((*secret-at-hand* t)
+          (,var (signed-in ,account)))
      (unwind-protect (progn ,@body)
        (let ((password (getf ,var :password)))
          (when (stringp password) (fill password #\Nul))))))
