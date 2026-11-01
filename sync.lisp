@@ -127,13 +127,13 @@ token (NIL for none), and its events, a list of AGREED."
 \(its heading's), :END (where its headings end in TEXT), :EVENTS (the
 entries of its events, the headings right under it) and :BY-UID (a table of
 them by their unique identifier (UID))."
-  (let ((tops (remove-if-not (lambda (e) (= 1 (entry-field e :level))) entries)))
+  (let ((tops (remove-if-not (lambda (e) (= 1 (agenda-entry-get e :level))) entries)))
     (loop for (top next) on tops
           for url = (entry-property top *calendar-property*)
-          for end = (if next (entry-field next :position) (length text))
+          for end = (if next (agenda-entry-get next :position) (length text))
           when url
-            collect (let ((events (remove-if-not (lambda (e) (and (= 2 (entry-field e :level))
-                                                                  (< (entry-field top :position) (entry-field e :position) end)))
+            collect (let ((events (remove-if-not (lambda (e) (and (= 2 (agenda-entry-get e :level))
+                                                                  (< (agenda-entry-get top :position) (agenda-entry-get e :position) end)))
                                                  entries))
                           (by-uid (make-hash-table :test 'equal)))
                       (dolist (e events)
@@ -297,12 +297,12 @@ refused, in words."
 
 (defun cancelled-entry-p (entry)
   "True when ENTRY was cancelled here: its keyword one of *CANCEL-KEYWORDS*."
-  (let ((keyword (entry-field entry :todo)))
+  (let ((keyword (agenda-entry-get entry :todo)))
     (and keyword (member keyword *cancel-keywords* :test #'string=) t)))
 
 (defun entry-text (entry)
   "ENTRY's own text."
-  (subseq (entry-field entry :text) (entry-field entry :position) (entry-field entry :end)))
+  (subseq (agenda-entry-get entry :text) (agenda-entry-get entry :position) (agenda-entry-get entry :end)))
 
 (defun entry-heading-line (entry)
   "ENTRY's first line."
@@ -340,7 +340,8 @@ is noted in the pass and the others go on."
                      (remhash url by-url) (remhash (agreed-uid was) by-uid)
                      (ignore-errors (remove-file (path-join folder (agreed-file was)))))))
                (refused (entry what status)
-                 (push (format nil "~a refused ~a ~a (~a)" (getf calendar :name) what (entry-field entry :title) status)
+                 (push (format nil "~a refused ~a ~a (~a)" (getf calendar :name) what (agenda-entry-get entry :title)
+                               status)
                        (calendar-pass-failed pass))))
           ;; what changed there since the last sync
           (multiple-value-bind (changed gone new-token) (calendar-changes account calendar token)
@@ -363,7 +364,7 @@ is noted in the pass and the others go on."
             (let ((changed-urls (mapcar #'car changed)) (conflicts (make-hash-table :test 'equal)))
               (dolist (entry (and section (getf section :events)))
                 (let* ((uid (entry-property entry *uid-property*))
-                       (local-tags (entry-field entry :local-tags))
+                       (local-tags (agenda-entry-get entry :local-tags))
                        (a (and uid (gethash uid by-uid))))
                   (unless (or (member *removed-tag* local-tags :test #'string=) (member *conflict-tag* local-tags :test #'string=)
                               ;; cancelled before it was ever sent: nothing to send
@@ -475,7 +476,7 @@ The entries' texts are made by the sync; here they are only put in place."
               (let ((entry (and section (entry-of-uid section uid))))
                 (if entry
                     (multiple-value-bind (props logbook body) (own-lines (entry-text entry))
-                      (edit (entry-field entry :position) (entry-field entry :end)
+                      (edit (agenda-entry-get entry :position) (agenda-entry-get entry :end)
                             (concatenate 'string (with-own-lines written props logbook body)
                                          (if mine
                                              (let* ((copy (without-uid mine))
@@ -488,14 +489,14 @@ The entries' texts are made by the sync; here they are only put in place."
             (let ((entry (and section (entry-of-uid section uid))))
               (when entry
                 (multiple-value-bind (props logbook body) (own-lines (entry-text entry))
-                  (edit (entry-field entry :position) (entry-field entry :end)
+                  (edit (agenda-entry-get entry :position) (agenda-entry-get entry :end)
                         (if (or props logbook body) (removed-entry (entry-text entry)) ""))))))
           ;; cancelled here and deleted there: tagged, its times left, so that the agenda shows it cancelled
           (dolist (uid (calendar-pass-cancelled pass))
             (let ((entry (and section (entry-of-uid section uid))))
               (when entry
                 (let ((line (entry-heading-line entry)))
-                  (edit (entry-field entry :position) (+ (entry-field entry :position) (length line))
+                  (edit (agenda-entry-get entry :position) (+ (agenda-entry-get entry :position) (length line))
                         (heading-tagged line *removed-tag*))))))
           (dolist (new (calendar-pass-new-uids pass))
             (destructuring-bind (heading uid) new
@@ -503,7 +504,8 @@ The entries' texts are made by the sync; here they are only put in place."
                                                                    (string= (entry-heading-line e) heading)))
                                                  (getf section :events)))))
                 (when entry
-                  (edit (entry-field entry :position) (entry-field entry :end) (with-uid (entry-text entry) uid))))))
+                  (edit (agenda-entry-get entry :position) (agenda-entry-get entry :end)
+                        (with-uid (entry-text entry) uid))))))
           (when added
             (let ((events (format nil "~{~a~}" (nreverse added))))
               (if section

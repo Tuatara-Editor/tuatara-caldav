@@ -386,59 +386,6 @@ TO; how many as a second value."
     (values (format nil "~{~a~}" (loop for members in groups collect (apply #'event-entry members calendar arguments)))
             (length groups))))
 
-;;; What the agenda read
-
-(defun entry-field (entry field)
-  "What ENTRY, an entry of the agenda's files (ORG-AGENDA-FILE-ENTRIES),
-holds as FIELD: :TEXT, the text of its file, :POSITION where its heading
-begins in it and :END where its own text ends; :LEVEL, its stars; :TITLE;
-:TODO, its keyword, and :TODO-TYPE, TODO, DONE or NIL; :LOCAL-TAGS, the tags
-on its heading; :PROPERTIES, an alist; :SCHEDULED, :DEADLINE and :CLOSED, its
-planning's timestamps as written; :STAMPS, its plain active timestamps, and
-:RANGES, its ranges of days, (FROM TO) each."
-  (ecase field
-    (:text (agenda-entry-text entry))
-    (:position (agenda-entry-position entry))
-    (:end (agenda-entry-end entry))
-    (:level (agenda-entry-level entry))
-    (:title (agenda-entry-title entry))
-    (:todo (agenda-entry-todo entry))
-    (:todo-type (agenda-entry-todo-type entry))
-    (:local-tags (agenda-entry-local-tags entry))
-    (:properties (agenda-entry-properties entry))
-    (:scheduled (agenda-entry-scheduled entry))
-    (:deadline (agenda-entry-deadline entry))
-    (:closed (agenda-entry-closed entry))
-    (:stamps (agenda-entry-stamps entry))
-    (:ranges (agenda-entry-ranges entry))))
-
-(defun timestamp-field (ts field)
-  "What the timestamp (TS) ORG-READ-TS read holds as FIELD: :DAY, its day as a
-day number; :HOUR and :MINUTE, its time, and :END-HOUR and :END-MINUTE, the
-end of its range of times, each NIL when it has none; :REPEAT-VALUE and
-:REPEAT-UNIT (#\\h #\\d #\\w #\\m #\\y), its repeater's, or NIL."
-  (ecase field
-    (:day (org-ts-day-number ts))
-    (:hour (org-ts-hour ts))
-    (:minute (org-ts-minute ts))
-    (:end-hour (org-ts-end-hour ts))
-    (:end-minute (org-ts-end-minute ts))
-    (:repeat-value (org-ts-repeat-value ts))
-    (:repeat-unit (org-ts-repeat-unit ts))))
-
-(defun rule-field (rule field)
-  "What RULE, a date by rule ORG-READ-RULE read, holds as FIELD: :KIND (:FLOAT,
-:CYCLIC, :BLOCK, :ANNIVERSARY, :DATE, :WEEKDAYS, :ALL or :ANY) and
-:ARGUMENTS, what its form says; :HOUR, :MINUTE, :END-HOUR and :END-MINUTE,
-the time written after it, each NIL when it has none."
-  (ecase field
-    (:kind (org-rule-kind rule))
-    (:arguments (org-rule-arguments rule))
-    (:hour (org-rule-hour rule))
-    (:minute (org-rule-minute rule))
-    (:end-hour (org-rule-end-hour rule))
-    (:end-minute (org-rule-end-minute rule))))
-
 ;;; Entries read back as events
 
 (defun zone-tzid (zone)
@@ -457,9 +404,9 @@ NIL when it has none, and times are written in Coordinated Universal Time (UTC).
 
 (defun ts-local (ts)
   "The start of the timestamp (TS) as a local time, midnight when it has no time."
-  (+ (* 86400 (timestamp-field ts :day))
-     (* 3600 (or (timestamp-field ts :hour) 0))
-     (* 60 (or (timestamp-field ts :minute) 0))))
+  (+ (* 86400 (org-ts-get ts :day-number))
+     (* 3600 (or (org-ts-get ts :hour) 0))
+     (* 60 (or (org-ts-get ts :minute) 0))))
 
 (defun timing-of-stamp (text zone)
   "The properties saying the times of TEXT, a timestamp or a range of two, on
@@ -467,22 +414,22 @@ ZONE's clock: start (DTSTART), end (DTEND), and recurrence rule (RRULE) for a re
   (multiple-value-bind (ts until) (stamp-ends text)
     (when ts
       (append
-       (if (or (null (timestamp-field ts :hour)) (and until (null (timestamp-field until :hour))))
-           (let ((day (timestamp-field ts :day)))
+       (if (or (null (org-ts-get ts :hour)) (and until (null (org-ts-get until :hour))))
+           (let ((day (org-ts-get ts :day-number)))
              (list (ical-time-property "DTSTART" (make-ical-time day))
-                   (ical-time-property "DTEND" (make-ical-time (1+ (max day (if until (timestamp-field until :day) day)))))))
+                   (ical-time-property "DTEND" (make-ical-time (1+ (max day (if until (org-ts-get until :day-number) day)))))))
            (let* ((start (ts-local ts))
                   (end (cond (until (ts-local until))
-                             ((timestamp-field ts :end-hour)
-                              (let ((end (+ (* 86400 (timestamp-field ts :day)) (* 3600 (timestamp-field ts :end-hour)) (* 60 (timestamp-field ts :end-minute)))))
+                             ((org-ts-get ts :end-hour)
+                              (let ((end (+ (* 86400 (org-ts-get ts :day-number)) (* 3600 (org-ts-get ts :end-hour)) (* 60 (org-ts-get ts :end-minute)))))
                                 (if (< end start) (+ end 86400) end))))))
              (list* (ical-time-property "DTSTART" (local-ical-time start zone))
                     (and end (> end start) (list (ical-time-property "DTEND" (local-ical-time end zone)))))))
-       (when (and (timestamp-field ts :repeat-value) (plusp (timestamp-field ts :repeat-value)))
+       (when (and (org-ts-get ts :repeat-value) (plusp (org-ts-get ts :repeat-value)))
          (list (make-ical-property "RRULE"
                                    (format nil "FREQ=~a~@[;INTERVAL=~d~]"
-                                           (ecase (timestamp-field ts :repeat-unit) (#\h "HOURLY") (#\d "DAILY") (#\w "WEEKLY") (#\m "MONTHLY") (#\y "YEARLY"))
-                                           (let ((n (timestamp-field ts :repeat-value))) (and (/= 1 n) n))))))))))
+                                           (ecase (org-ts-get ts :repeat-unit) (#\h "HOURLY") (#\d "DAILY") (#\w "WEEKLY") (#\m "MONTHLY") (#\y "YEARLY"))
+                                           (let ((n (org-ts-get ts :repeat-value))) (and (/= 1 n) n))))))))))
 
 (defun evenly-interval (months)
   "The interval of MONTHS, a list of months a date by rule takes, when they
@@ -497,27 +444,27 @@ of them; NIL when they do not."
   "What RULE, a date by rule as the repeat menu writes it, says as a rule of
 recurrence: an ICAL-RECUR with no end, and the first and last day numbers it
 gives, or NIL for each; NIL when no rule of recurrence says it."
-  (let ((parts (if (eq (rule-field rule :kind) :all) (first (rule-field rule :arguments)) (list rule)))
+  (let ((parts (if (eq (org-rule-get rule :kind) :all) (first (org-rule-get rule :arguments)) (list rule)))
         (first nil) (last nil))
-    (let ((block (find :block parts :key (lambda (part) (rule-field part :kind)))))
+    (let ((block (find :block parts :key (lambda (part) (org-rule-get part :kind)))))
       (when block
         (setf parts (remove block parts)
-              first (first (rule-field block :arguments))
-              last (second (rule-field block :arguments)))
+              first (first (org-rule-get block :arguments))
+              last (second (org-rule-get block :arguments)))
         (when (= last (repeat-open-end first)) (setf last nil))))
-    (flet ((kind (k) (find k parts :key (lambda (part) (rule-field part :kind)))))
+    (flet ((kind (k) (find k parts :key (lambda (part) (org-rule-get part :kind)))))
       (let ((recur
               (cond
                 ;; every so many days on some days of the week
                 ((and (= (length parts) 2) (kind :cyclic) (kind :weekdays))
-                 (destructuring-bind (n start) (rule-field (kind :cyclic) :arguments)
+                 (destructuring-bind (n start) (org-rule-get (kind :cyclic) :arguments)
                    (setf first (or first start))
-                   (make-ical-recur :daily :interval n :by-day (mapcar (lambda (wd) (cons nil wd)) (sort (copy-list (first (rule-field (kind :weekdays) :arguments))) #'<)))))
+                   (make-ical-recur :daily :interval n :by-day (mapcar (lambda (wd) (cons nil wd)) (sort (copy-list (first (org-rule-get (kind :weekdays) :arguments))) #'<)))))
                 ((rest parts) nil)
                 (t
                  (let ((main (first parts)))
-                   (destructuring-bind (&optional a b c d) (rule-field main :arguments)
-                     (case (rule-field main :kind)
+                   (destructuring-bind (&optional a b c d) (org-rule-get main :arguments)
+                     (case (org-rule-get main :kind)
                        (:float (and (integerp b) (null d)
                                     (cond ((eq a t) (make-ical-recur :monthly :by-day (list (cons c b))))
                                           ((integerp a) (make-ical-recur :yearly :by-month (list a) :by-day (list (cons c b))))
@@ -527,8 +474,8 @@ gives, or NIL for each; NIL when no rule of recurrence says it."
                        (:cyclic (setf first (or first b))
                         (if (zerop (mod a 7)) (make-ical-recur :weekly :interval (/ a 7)) (make-ical-recur :daily :interval a)))
                        ;; every so many weeks on several days: a cycle of weeks each
-                       (:any (let ((cycles (mapcar (lambda (r) (rule-field r :arguments)) a)))
-                               (when (and (every (lambda (r) (eq (rule-field r :kind) :cyclic)) a)
+                       (:any (let ((cycles (mapcar (lambda (r) (org-rule-get r :arguments)) a)))
+                               (when (and (every (lambda (r) (eq (org-rule-get r :kind) :cyclic)) a)
                                           (every (lambda (c) (and (= (first c) (first (first cycles))) (zerop (mod (first c) 7)))) cycles))
                                  (setf first (or first (reduce #'min cycles :key #'second)))
                                  (make-ical-recur :weekly :interval (/ (first (first cycles)) 7)
@@ -561,10 +508,10 @@ rule takes from the day number TODAY; NIL when no rule of recurrence says it."
                            (and agreed-start (eql (org-rule-next rule agreed-start) agreed-start) agreed-start)
                            (org-rule-next rule today))))
             (when first
-              (let* ((hour (rule-field rule :hour))
-                     (start (+ (* 86400 first) (* 3600 (or hour 0)) (* 60 (or (rule-field rule :minute) 0))))
-                     (end (and hour (rule-field rule :end-hour)
-                               (+ (* 86400 first) (* 3600 (rule-field rule :end-hour)) (* 60 (rule-field rule :end-minute))))))
+              (let* ((hour (org-rule-get rule :hour))
+                     (start (+ (* 86400 first) (* 3600 (or hour 0)) (* 60 (or (org-rule-get rule :minute) 0))))
+                     (end (and hour (org-rule-get rule :end-hour)
+                               (+ (* 86400 first) (* 3600 (org-rule-get rule :end-hour)) (* 60 (org-rule-get rule :end-minute))))))
                 (when last
                   (setf (ical-recur-until recur)
                         (if hour
@@ -580,7 +527,7 @@ rule takes from the day number TODAY; NIL when no rule of recurrence says it."
 
 (defun entry-description (entry)
   "ENTRY's description, from its block (BLOCK-DESCRIPTION), or NIL."
-  (block-description (entry-field entry :text) (entry-field entry :position) (entry-field entry :end)))
+  (block-description (agenda-entry-get entry :text) (agenda-entry-get entry :position) (agenda-entry-get entry :end)))
 
 (defun unless-blank (text)
   "TEXT, or NIL when it is NIL or holds nothing but spaces and line breaks."
@@ -588,7 +535,7 @@ rule takes from the day number TODAY; NIL when no rule of recurrence says it."
 
 (defun entry-property (entry name)
   "The value of ENTRY's property NAME, or NIL."
-  (let ((value (cdr (assoc name (entry-field entry :properties) :test #'string-equal))))
+  (let ((value (cdr (assoc name (agenda-entry-get entry :properties) :test #'string-equal))))
     (and value (agenda-unguarded value))))
 
 (defun uid-day (uid text)
@@ -596,7 +543,7 @@ rule takes from the day number TODAY; NIL when no rule of recurrence says it."
 other than its first: UID and the day it says (UID-20261103)."
   (let ((ts (stamp-ends text)))
     (if ts
-        (multiple-value-bind (year month day) (day-date (timestamp-field ts :day))
+        (multiple-value-bind (year month day) (day-date (org-ts-get ts :day-number))
           (format nil "~a-~4,'0d~2,'0d~2,'0d" uid year month day))
         (format nil "~a-~36r" uid (string-hash text)))))
 
@@ -664,7 +611,7 @@ second, or NIL for a single one (ORG-READ-TS each)."
   "True when TEXT, a timestamp of an entry, says a time that repeats: by rule, or with a repeater."
   (or (org-rule-text-p text)
       (let ((ts (stamp-ends text)))
-        (and ts (timestamp-field ts :repeat-value) (plusp (timestamp-field ts :repeat-value))))))
+        (and ts (org-ts-get ts :repeat-value) (plusp (org-ts-get ts :repeat-value))))))
 
 (defun entry-components (entry &key agreed uid (zone (system-time-zone)) (now (get-universal-time)))
   "The events or the task ENTRY, an agenda entry (ORG-AGENDA-FILE-ENTRIES),
@@ -677,27 +624,29 @@ an event whose times the entry does not say (written out, or said as the
 calendar said them). UID, when given, is the UID of an entry that has none
 yet (NEW-UID); time stamp (DTSTAMP) is NOW."
   (let* ((uid (one-line (or (entry-property entry *uid-property*) uid (new-uid))))
-         (local-tags (entry-field entry :local-tags))
+         (local-tags (agenda-entry-get entry :local-tags))
          (cancelled-tag (member *cancelled-tag* local-tags :test #'string=))
          (tags (remove *cancelled-tag* local-tags :test #'string=))
          ;; a field left blank, as a form leaves it, is none
          (description (unless-blank (entry-description entry)))
          (location (unless-blank (entry-property entry "LOCATION")))
-         (stamps (entry-field entry :stamps))
-         (ranges (mapcar (lambda (r) (format nil "~a--~a" (first r) (second r))) (entry-field entry :ranges)))
-         (task (and (entry-field entry :todo-type) (entry-field entry :deadline) (null stamps) (null ranges)))
+         (stamps (agenda-entry-get entry :stamps))
+         (ranges (mapcar (lambda (r) (format nil "~a--~a" (first r) (second r))) (agenda-entry-get entry :ranges)))
+         (task (and (agenda-entry-get entry :todo-type) (agenda-entry-get entry :deadline) (null stamps) (null ranges)))
          (times (cond (task nil)
                       ((or stamps ranges)
                        ;; in the order written
-                       (let ((text (entry-field entry :text)) (from (entry-field entry :position)))
+                       (let ((text (agenda-entry-get entry :text)) (from (agenda-entry-get entry :position)))
                          (sort (append stamps ranges) #'<
-                               :key (lambda (stamp) (or (search stamp text :start2 from :end2 (entry-field entry :end)) 0)))))
-                      ((and (entry-field entry :scheduled) (char= (char (entry-field entry :scheduled) 0) #\<))
-                       (list (entry-field entry :scheduled)))))
+                               :key (lambda (stamp) (or (search stamp text :start2 from :end2 (agenda-entry-get entry :end)) 0)))))
+                      ((and (agenda-entry-get entry :scheduled)
+                            (char= (char (agenda-entry-get entry :scheduled) 0) #\<))
+                       (list (agenda-entry-get entry :scheduled)))))
          (stamp-utc (let ((u now)) (universal-ical-time u)))
          (today (floor (zone-local-time zone now) 86400)))
     (multiple-value-bind (cancelled moved)
-        (org-occurrence-notes (entry-field entry :text) (entry-field entry :position) (entry-field entry :end))
+        (org-occurrence-notes (agenda-entry-get entry :text) (agenda-entry-get entry :position)
+                              (agenda-entry-get entry :end))
       (flet ((said (kept-master kind status)
                ;; what the entry says of an event, its kept properties KEPT-MASTER's
                (let ((categories (loop for tag in tags
@@ -706,7 +655,7 @@ yet (NEW-UID); time stamp (DTSTAMP) is NOW."
                                                               thereis (find tag (ical-texts (ical-property-value p)) :key #'tag-name :test #'equal)))
                                                    tag))))
                  (remove nil
-                         (list (make-ical-property "SUMMARY" (ical-text-escaped (summary-words (entry-field entry :title))))
+                         (list (make-ical-property "SUMMARY" (ical-text-escaped (summary-words (agenda-entry-get entry :title))))
                                (and location (make-ical-property "LOCATION" (ical-text-escaped location)))
                                (and categories (make-ical-property "CATEGORIES" (ical-texts-escaped categories)))
                                (and status (make-ical-property "STATUS" status))
@@ -722,13 +671,13 @@ yet (NEW-UID); time stamp (DTSTAMP) is NOW."
           (task
            (let* ((members (agreed-members agreed uid))
                   (kept (first members))
-                  (done (string= (symbol-name (entry-field entry :todo-type)) "DONE"))
+                  (done (string= (symbol-name (agenda-entry-get entry :todo-type)) "DONE"))
                   (timing (flet ((planned (name text)
                                    (let ((props (timing-of-stamp text zone)))
                                      (and props (let ((p (first props))) (make-ical-property name (ical-property-value p) (ical-property-parameters p)))))))
-                            (remove nil (list (planned "DUE" (entry-field entry :deadline))
-                                              (and (entry-field entry :scheduled) (planned "DTSTART" (entry-field entry :scheduled)))))))
-                  (closed (and done (entry-field entry :closed) (org-read-ts (entry-field entry :closed))))
+                            (remove nil (list (planned "DUE" (agenda-entry-get entry :deadline))
+                                              (and (agenda-entry-get entry :scheduled) (planned "DTSTART" (agenda-entry-get entry :scheduled)))))))
+                  (closed (and done (agenda-entry-get entry :closed) (org-read-ts (agenda-entry-get entry :closed))))
                   (status (cond (done "COMPLETED")
                                 ((and kept (string-equal (or (ical-value-of kept "STATUS") "") "COMPLETED")) "NEEDS-ACTION")
                                 (t (status-of kept)))))

@@ -95,11 +95,12 @@ written to the debug log by its kind alone, without the calls under way or what 
 (defun failure-said (condition)
   "CONDITION in words for telling what failed: a server or a calendar file gone
 wrong (CALDAV-ERROR, ICALENDAR-ERROR) in the package's own words, in full; any
-other failure by its kind alone (\"a type-error\"), as its words could hold the
-password of the account being synced."
+other failure by its kind alone (\"a type-error\", FAILURE-WORDS with a secret at
+hand), as its words could hold the password of the account being synced."
   (if (typep condition '(or caldav-error icalendar-error))
       (princ-to-string condition)
-      (format nil "a ~(~a~)" (type-of condition))))
+      (let ((*secret-at-hand* t))
+        (failure-words condition :said t))))
 
 (defmacro noting-failure ((job name) &body body)
   "Run BODY; an error in it is noted among JOB's failures under NAME, in the words
@@ -368,7 +369,7 @@ the server has them."
   "The calendars' headings of TEXT, the calendars' file, each a title and the calendar's web address
 (URL), as (TITLE . URL)."
   (loop for section in (calendar-sections text (file-entries text))
-        collect (cons (entry-field (getf section :entry) :title) (getf section :url))))
+        collect (cons (agenda-entry-get (getf section :entry) :title) (getf section :url))))
 
 (defparameter *not-synced* "Not synced: under a heading of its own"
   "The choice of CALDAV-IMPORT that puts what it reads under a heading of its own.")
@@ -441,11 +442,11 @@ tags and description."
          (chosen (if region
                      (let ((from (length (buffer-string buffer :end (first region))))
                            (to (length (buffer-string buffer :end (second region)))))
-                       (remove-if-not (lambda (e) (and (< (entry-field e :position) to) (> (entry-field e :end) from))) entries))
+                       (remove-if-not (lambda (e) (and (< (agenda-entry-get e :position) to) (> (agenda-entry-get e :end) from))) entries))
                      (let* ((at (length (buffer-string buffer :end (buffer-point buffer))))
-                            (here (find-if (lambda (e) (<= (entry-field e :position) at)) entries :from-end t)))
+                            (here (find-if (lambda (e) (<= (agenda-entry-get e :position) at)) entries :from-end t)))
                        (and here (cons here (loop for e in (rest (member here entries))
-                                                  while (> (entry-field e :level) (entry-field here :level))
+                                                  while (> (agenda-entry-get e :level) (agenda-entry-get here :level))
                                                   collect e))))))
          (calendars (loop for e in chosen
                           for c = (ignore-errors (entry-calendar e))

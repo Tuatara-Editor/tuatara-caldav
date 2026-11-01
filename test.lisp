@@ -339,6 +339,10 @@ before TO, local times all, the first MOST of them."
   (let ((text (apply #'caldav::calendar-entries calendar :zone (cs-zone) :now (cs-now) arguments)))
     (values text (tuatara.defaults::org-agenda-file-entries "/x/agenda_caldav.org" (format nil "* Calendar~%~a" text)))))
 
+(defun cs-titled (title entries)
+  "The entry of ENTRIES whose title is TITLE."
+  (find title entries :key (lambda (entry) (tuatara:agenda-entry-get entry :title)) :test #'string=))
+
 (defun cs-sent (entry &rest arguments)
   "What ENTRY says as events, on the tests' clock and at their now."
   (apply #'caldav::entry-components entry :zone (cs-zone) :now (cs-now) arguments))
@@ -411,13 +415,13 @@ end, a note, a checkbox, timestamps and a clock.")
                                <2026-10-30 Fri>~%<2026-11-30 Mon>~%<2026-12-31 Thu>~%")
           text)
       ;; as the agenda reads them: the times cancelled and moved, and each rule the days the calendar says
-      (let ((weekly (find "Stand-up" entries :key #'tuatara:agenda-entry-title :test #'string=)))
+      (let ((weekly (cs-titled "Stand-up" entries)))
         (multiple-value-bind (cancelled moved)
-            (tuatara:org-occurrence-notes (tuatara:agenda-entry-text weekly) (tuatara:agenda-entry-position weekly) (tuatara:agenda-entry-end weekly))
+            (tuatara:org-occurrence-notes (tuatara:agenda-entry-get weekly :text) (tuatara:agenda-entry-get weekly :position) (tuatara:agenda-entry-get weekly :end))
           (is equal (list (cons (tuatara:day-number 2026 11 10) 900)) cancelled)
           (is equal (list (cons (cons (tuatara:day-number 2026 11 17) 900) (cons (tuatara:day-number 2026 11 18) 1400))) moved)))
       (flet ((days (title from count)
-               (let ((rule (tuatara:org-read-rule (first (tuatara:agenda-entry-stamps (find title entries :key #'tuatara:agenda-entry-title :test #'string=))))))
+               (let ((rule (tuatara:org-read-rule (first (tuatara:agenda-entry-get (cs-titled title entries) :stamps)))))
                  (loop repeat count
                        for day = (tuatara:org-rule-next rule from) then (tuatara:org-rule-next rule (1+ day))
                        while day collect (multiple-value-list (tuatara:day-date day))))))
@@ -433,16 +437,16 @@ end, a note, a checkbox, timestamps and a clock.")
                                "LOCATION:Room <2026-11-06 Fri>"
                                "DTSTART;VALUE=DATE:20261103" "END:VEVENT")))
     (multiple-value-bind (text entries) (cs-entries calendar)
-      (let ((entry (find "odd@example.org" entries :key (lambda (e) (cdr (assoc "UID" (tuatara:agenda-entry-properties e) :test #'string=))) :test #'equal)))
+      (let ((entry (find "odd@example.org" entries :key (lambda (e) (cdr (assoc "UID" (tuatara:agenda-entry-get e :properties) :test #'string=))) :test #'equal)))
         (true entry "the heading is one: ~a" text)
         ;; nothing in it the agenda reads but its own day: no keyword, tags, other times, notes, clocks or tasks
         (is = 2 (length entries))
-        (false (tuatara:agenda-entry-todo entry))
-        (is equal '() (tuatara:agenda-entry-local-tags entry))
-        (is equal '("<2026-11-03 Tue>") (tuatara:agenda-entry-stamps entry))
+        (false (tuatara:agenda-entry-get entry :todo))
+        (is equal '() (tuatara:agenda-entry-get entry :local-tags))
+        (is equal '("<2026-11-03 Tue>") (tuatara:agenda-entry-get entry :stamps))
         (false (tuatara.defaults::agenda-entry-logs entry))
-        (is equal '(nil nil) (multiple-value-list (tuatara:org-occurrence-notes (tuatara:agenda-entry-text entry) (tuatara:agenda-entry-position entry) (tuatara:agenda-entry-end entry))))
-        (false (search "[[" (tuatara:agenda-entry-title entry)))
+        (is equal '(nil nil) (multiple-value-list (tuatara:org-occurrence-notes (tuatara:agenda-entry-get entry :text) (tuatara:agenda-entry-get entry :position) (tuatara:agenda-entry-get entry :end))))
+        (false (search "[[" (tuatara:agenda-entry-get entry :title)))
         ;; and each read back as the calendar said it
         (let ((event (first (cs-sent entry))))
           (is string= "TODO [[file:/etc/passwd]] costs $5 \\input{x} <2026-11-05 Thu> :x:"
@@ -528,8 +532,8 @@ end, a note, a checkbox, timestamps and a clock.")
                                 "BEGIN:VEVENT" "UID:pay@example.org" "SUMMARY:Payday" "DTSTART;VALUE=DATE:20261030"
                                 "RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1" "END:VEVENT"))
          (entries (nth-value 1 (cs-entries calendar)))
-         (weekly (first (cs-sent (find "Stand-up" entries :key #'tuatara:agenda-entry-title :test #'string=) :agreed calendar)))
-         (pay (first (cs-sent (find "Payday" entries :key #'tuatara:agenda-entry-title :test #'string=) :agreed calendar))))
+         (weekly (first (cs-sent (cs-titled "Stand-up" entries) :agreed calendar)))
+         (pay (first (cs-sent (cs-titled "Payday" entries) :agreed calendar))))
     (is equal '("DTSTART;TZID=Europe/Stockholm:20261103T090000" "DURATION:PT30M" "RRULE:FREQ=WEEKLY;BYDAY=TU"
                 "EXDATE;TZID=Europe/Stockholm:20261110T090000" "SEQUENCE:4" "X-CLIENT-THING:kept" "CATEGORIES:Public Holiday")
         (mapcar (lambda (name) (cs-property-line weekly name))
@@ -550,7 +554,7 @@ end, a note, a checkbox, timestamps and a clock.")
   (let* ((calendar (cs-calendar "BEGIN:VEVENT" "UID:birthday@example.org" "DTSTART;VALUE=DATE:20260702"
                                 "DTEND;VALUE=DATE:20260703" "CREATED:20260615T125119Z" "RRULE:FREQ=YEARLY"
                                 "SEQUENCE:1" "SUMMARY:Birthday" "TRANSP:TRANSPARENT" "X-MOZ-GENERATION:1" "END:VEVENT"))
-         (entry (find "Birthday" (nth-value 1 (cs-entries calendar)) :key #'tuatara:agenda-entry-title :test #'string=))
+         (entry (cs-titled "Birthday" (nth-value 1 (cs-entries calendar))))
          (sent (cs-sent entry :agreed calendar))
          (names (mapcar #'caldav::ical-property-name (caldav::ical-component-properties (first sent)))))
     (is equal (remove-duplicates names :test #'string-equal :from-end t) names)
@@ -1076,7 +1080,7 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
                              text)
                      "~a" text)
                ;; an entry the next sync sends as an event
-               (let ((entry (find "Dentist" (tuatara.defaults::org-agenda-file-entries file text) :key #'tuatara:agenda-entry-title :test #'string=)))
+               (let ((entry (cs-titled "Dentist" (tuatara.defaults::org-agenda-file-entries file text))))
                  (true entry)
                  ;; sent with its place and description
                  (let ((event (first (cs-sent entry))))
@@ -1087,7 +1091,7 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
              (run-keys "M-x c a l d a v - e v e n t - n e w RET H o m e RET L u n c h RET RET 2 0 2 6 - 1 1 - 0 6 SPC 1 2 : 0 0 RET C-c C-c"
                        :text "x" :width 120 :height 16)
              (let* ((text (file-text file))
-                    (entry (find "Lunch" (tuatara.defaults::org-agenda-file-entries file text) :key #'tuatara:agenda-entry-title :test #'string=))
+                    (entry (cs-titled "Lunch" (tuatara.defaults::org-agenda-file-entries file text)))
                     (event (first (cs-sent entry))))
                (true (search "<2026-11-06 Fri 12:00>" text) "~a" text)
                (is string= "Lunch" (caldav::ical-value-of event "SUMMARY"))
