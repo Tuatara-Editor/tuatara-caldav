@@ -92,10 +92,20 @@ written to the debug log by its kind alone, without the calls under way or what 
        (let ((password (getf ,var :password)))
          (when (stringp password) (fill password #\Nul))))))
 
+(defun failure-said (condition)
+  "CONDITION in words for telling what failed: a server or a calendar file gone
+wrong (CALDAV-ERROR, ICALENDAR-ERROR) in the package's own words, in full; any
+other failure by its kind alone (\"a type-error\"), as its words could hold the
+password of the account being synced."
+  (if (typep condition '(or caldav-error icalendar-error))
+      (princ-to-string condition)
+      (format nil "a ~(~a~)" (type-of condition))))
+
 (defmacro noting-failure ((job name) &body body)
-  "Run BODY; an error in it is noted among JOB's failures under NAME, and the work goes on."
+  "Run BODY; an error in it is noted among JOB's failures under NAME, in the words
+FAILURE-SAID gives, and the work goes on."
   `(handler-case (progn ,@body)
-     (error (e) (push (format nil "~a: ~a" ,name e) (caldav-job-failed ,job)))))
+     (error (e) (push (format nil "~a: ~a" ,name (failure-said e)) (caldav-job-failed ,job)))))
 
 (defun chosen-calendars (account calendars)
   "Those of CALENDARS, ACCOUNT's, its :CALENDARS names (any case), or every
@@ -261,7 +271,7 @@ Tuatara reaches the server, and what it finds there. In the background."
                                             (mapcar (lambda (c) (getf c :name)) calendars)
                                             (mapcar (lambda (c) (getf c :name)) (chosen-calendars account calendars)))
                                       (calendar-list-job-found job))))
-                            (error (e) (push (format nil "~a: ~a" (getf account :name) e) (calendar-list-job-failed job))))))
+                            (error (e) (push (format nil "~a: ~a" (getf account :name) (failure-said e)) (calendar-list-job-failed job))))))
                       :name "tuatara caldav list")
     (take-in-soon job 0 "Asking for the calendars")))
 

@@ -969,6 +969,32 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
        (error "midway")))
     (true (every (lambda (c) (char= c (code-char 0))) kept))))
 
+(define-test (caldav other-failures-told-by-kind)
+  ;; a failure not the package's own, its words holding the password, is told by its kind alone
+  (let ((told '())
+        (caldav::*told-last* nil)
+        (tuatara-user::*caldav-accounts* '((:name "Home" :url "https://cal.example.org/" :user "kiwi"
+                                            :password-command "printf kiwi-fake-pass")))
+        (tuatara-user::*caldav-subscriptions* '())
+        (caldav::*transport* (lambda (method url &key user password &allow-other-keys)
+                               (declare (ignore method url))
+                               (error "~a" (format nil "signed in as ~a:~a" user password))))
+        (job (caldav::make-caldav-job nil nil)))
+    (sb-int:encapsulate 'tuatara:notify 'cs-told
+                        (lambda (function title words &rest keys) (declare (ignore function keys)) (push (list title words) told)))
+    (unwind-protect
+         (progn
+           (caldav::sync-work job "")
+           (is equal '("Home: a simple-error") (caldav::caldav-job-failed job))
+           (caldav::job-take-in job)
+           (is = 1 (length told))
+           (false (search "kiwi-fake-pass" (second (first told))) "~a" told))
+      (sb-int:unencapsulate 'tuatara:notify 'cs-told)))
+  ;; the package's own failures keep their words
+  (is string= "https://cal.example.org/ not reached: no answer"
+      (handler-case (caldav::caldav-fail "https://cal.example.org/ not reached: no answer")
+        (error (e) (caldav::failure-said e)))))
+
 (define-test (caldav password-kept-out-of-the-debug-log)
   ;; a failure while signed in is logged by its kind alone: no password, no call's arguments
   (let ((log (merge-pathnames (format nil "tuatara-cs-debug-~d.log" (sb-posix:getpid)) (uiop:temporary-directory))))
