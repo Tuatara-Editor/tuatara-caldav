@@ -337,7 +337,7 @@ before TO, local times all, the first MOST of them."
 (defun cs-entries (calendar &rest arguments)
   "CALENDAR's entries as the package writes them, and as the agenda reads them back: two values."
   (let ((text (apply #'caldav::calendar-entries calendar :zone (cs-zone) :now (cs-now) arguments)))
-    (values text (tuatara.defaults::org-agenda-file-entries "/x/agenda_caldav.org" (format nil "* Calendar~%~a" text)))))
+    (values text (tuatara:org-agenda-file-entries "/x/agenda_caldav.org" (format nil "* Calendar~%~a" text)))))
 
 (defun cs-titled (title entries)
   "The entry of ENTRIES whose title is TITLE."
@@ -444,7 +444,7 @@ end, a note, a checkbox, timestamps and a clock.")
         (false (tuatara:agenda-entry-get entry :todo))
         (is equal '() (tuatara:agenda-entry-get entry :local-tags))
         (is equal '("<2026-11-03 Tue>") (tuatara:agenda-entry-get entry :stamps))
-        (false (tuatara.defaults::agenda-entry-logs entry))
+        (false (tuatara:agenda-entry-get entry :logs))
         (is equal '(nil nil) (multiple-value-list (tuatara:org-occurrence-notes (tuatara:agenda-entry-get entry :text) (tuatara:agenda-entry-get entry :position) (tuatara:agenda-entry-get entry :end))))
         (false (search "[[" (tuatara:agenda-entry-get entry :title)))
         ;; and each read back as the calendar said it
@@ -456,7 +456,7 @@ end, a note, a checkbox, timestamps and a clock.")
 
 (defun cs-entry (text)
   "The agenda entry of TEXT, one entry, as the agenda reads it."
-  (first (tuatara.defaults::org-agenda-file-entries "/x/agenda_caldav.org" text)))
+  (first (tuatara:org-agenda-file-entries "/x/agenda_caldav.org" text)))
 
 (defun cs-property-line (component name)
   "COMPONENT's property NAME as one line, or NIL."
@@ -1080,7 +1080,7 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
                              text)
                      "~a" text)
                ;; an entry the next sync sends as an event
-               (let ((entry (cs-titled "Dentist" (tuatara.defaults::org-agenda-file-entries file text))))
+               (let ((entry (cs-titled "Dentist" (tuatara:org-agenda-file-entries file text))))
                  (true entry)
                  ;; sent with its place and description
                  (let ((event (first (cs-sent entry))))
@@ -1091,7 +1091,7 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
              (run-keys "M-x c a l d a v - e v e n t - n e w RET H o m e RET L u n c h RET RET 2 0 2 6 - 1 1 - 0 6 SPC 1 2 : 0 0 RET C-c C-c"
                        :text "x" :width 120 :height 16)
              (let* ((text (file-text file))
-                    (entry (cs-titled "Lunch" (tuatara.defaults::org-agenda-file-entries file text)))
+                    (entry (cs-titled "Lunch" (tuatara:org-agenda-file-entries file text)))
                     (event (first (cs-sent entry))))
                (true (search "<2026-11-06 Fri 12:00>" text) "~a" text)
                (is string= "Lunch" (caldav::ical-value-of event "SUMMARY"))
