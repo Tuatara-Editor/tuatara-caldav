@@ -14,7 +14,7 @@
 (in-package #:caldav)
 
 (defparameter *uid-property* "UID"
-  "The property of an entry that holds the UID of its event.")
+  "The property of an entry that holds the unique identifier (UID) of its event.")
 
 (defparameter *rule-property* "RRULE"
   "The property of an entry whose times were written out one by one: the
@@ -378,7 +378,7 @@ the universal time FROM below TO; notes are noted at NOW."
         (write-string (description-block description) out)))))
 
 (defun calendar-entries (calendar &rest arguments &key (level 2) zone now from to)
-  "The Org entries of the events and tasks of CALENDAR, a VCALENDAR, each a
+  "The Org entries of the events and tasks of CALENDAR, a calendar (VCALENDAR), each a
 heading of LEVEL stars, as EVENT-ENTRY writes them with ZONE, NOW, FROM and
 TO; how many as a second value."
   (declare (ignore level zone now from to))
@@ -389,12 +389,13 @@ TO; how many as a second value."
 ;;; Entries read back as events
 
 (defun zone-tzid (zone)
-  "The TZID ZONE is written with: its name, when it is a zone's name; NIL when it has none, and times are written in UTC."
+  "The time zone identifier (TZID) ZONE is written with: its name, when it is a zone's name;
+NIL when it has none, and times are written in Coordinated Universal Time (UTC)."
   (let ((name (time-zone-name zone)))
     (and name (zone-name-p name) name)))
 
 (defun local-ical-time (local zone)
-  "The local time LOCAL on ZONE's clock as an ICAL-TIME: in ZONE by its name, else in UTC."
+  "The local time LOCAL on ZONE's clock as an ICAL-TIME: in ZONE by its name, else in Coordinated Universal Time (UTC)."
   (let ((tzid (zone-tzid zone)))
     (if tzid
         (make-ical-time (floor local 86400) (mod local 86400) tzid)
@@ -402,31 +403,33 @@ TO; how many as a second value."
           (universal-ical-time universal)))))
 
 (defun ts-local (ts)
-  "TS's start as a local time, midnight when it has no time."
-  (+ (* 86400 (org-ts-day-number ts)) (* 3600 (or (org-ts-hour ts) 0)) (* 60 (or (org-ts-minute ts) 0))))
+  "The start of the timestamp (TS) as a local time, midnight when it has no time."
+  (+ (* 86400 (org-ts-get ts :day-number))
+     (* 3600 (or (org-ts-get ts :hour) 0))
+     (* 60 (or (org-ts-get ts :minute) 0))))
 
 (defun timing-of-stamp (text zone)
   "The properties saying the times of TEXT, a timestamp or a range of two, on
-ZONE's clock: DTSTART, DTEND, and RRULE for a repeater; NIL when TEXT is none."
+ZONE's clock: start (DTSTART), end (DTEND), and recurrence rule (RRULE) for a repeater; NIL when TEXT is none."
   (multiple-value-bind (ts until) (stamp-ends text)
     (when ts
       (append
-       (if (or (null (org-ts-hour ts)) (and until (null (org-ts-hour until))))
-           (let ((day (org-ts-day-number ts)))
+       (if (or (null (org-ts-get ts :hour)) (and until (null (org-ts-get until :hour))))
+           (let ((day (org-ts-get ts :day-number)))
              (list (ical-time-property "DTSTART" (make-ical-time day))
-                   (ical-time-property "DTEND" (make-ical-time (1+ (max day (if until (org-ts-day-number until) day)))))))
+                   (ical-time-property "DTEND" (make-ical-time (1+ (max day (if until (org-ts-get until :day-number) day)))))))
            (let* ((start (ts-local ts))
                   (end (cond (until (ts-local until))
-                             ((org-ts-end-hour ts)
-                              (let ((end (+ (* 86400 (org-ts-day-number ts)) (* 3600 (org-ts-end-hour ts)) (* 60 (org-ts-end-minute ts)))))
+                             ((org-ts-get ts :end-hour)
+                              (let ((end (+ (* 86400 (org-ts-get ts :day-number)) (* 3600 (org-ts-get ts :end-hour)) (* 60 (org-ts-get ts :end-minute)))))
                                 (if (< end start) (+ end 86400) end))))))
              (list* (ical-time-property "DTSTART" (local-ical-time start zone))
                     (and end (> end start) (list (ical-time-property "DTEND" (local-ical-time end zone)))))))
-       (when (and (org-ts-repeat-value ts) (plusp (org-ts-repeat-value ts)))
+       (when (and (org-ts-get ts :repeat-value) (plusp (org-ts-get ts :repeat-value)))
          (list (make-ical-property "RRULE"
                                    (format nil "FREQ=~a~@[;INTERVAL=~d~]"
-                                           (ecase (org-ts-repeat-unit ts) (#\h "HOURLY") (#\d "DAILY") (#\w "WEEKLY") (#\m "MONTHLY") (#\y "YEARLY"))
-                                           (and (/= 1 (org-ts-repeat-value ts)) (org-ts-repeat-value ts))))))))))
+                                           (ecase (org-ts-get ts :repeat-unit) (#\h "HOURLY") (#\d "DAILY") (#\w "WEEKLY") (#\m "MONTHLY") (#\y "YEARLY"))
+                                           (let ((n (org-ts-get ts :repeat-value))) (and (/= 1 n) n))))))))))
 
 (defun evenly-interval (months)
   "The interval of MONTHS, a list of months a date by rule takes, when they
@@ -441,27 +444,27 @@ of them; NIL when they do not."
   "What RULE, a date by rule as the repeat menu writes it, says as a rule of
 recurrence: an ICAL-RECUR with no end, and the first and last day numbers it
 gives, or NIL for each; NIL when no rule of recurrence says it."
-  (let ((parts (if (eq (org-rule-kind rule) :all) (first (org-rule-arguments rule)) (list rule)))
+  (let ((parts (if (eq (org-rule-get rule :kind) :all) (first (org-rule-get rule :arguments)) (list rule)))
         (first nil) (last nil))
-    (let ((block (find :block parts :key #'org-rule-kind)))
+    (let ((block (find :block parts :key (lambda (part) (org-rule-get part :kind)))))
       (when block
         (setf parts (remove block parts)
-              first (first (org-rule-arguments block))
-              last (second (org-rule-arguments block)))
+              first (first (org-rule-get block :arguments))
+              last (second (org-rule-get block :arguments)))
         (when (= last (repeat-open-end first)) (setf last nil))))
-    (flet ((kind (k) (find k parts :key #'org-rule-kind)))
+    (flet ((kind (k) (find k parts :key (lambda (part) (org-rule-get part :kind)))))
       (let ((recur
               (cond
                 ;; every so many days on some days of the week
                 ((and (= (length parts) 2) (kind :cyclic) (kind :weekdays))
-                 (destructuring-bind (n start) (org-rule-arguments (kind :cyclic))
+                 (destructuring-bind (n start) (org-rule-get (kind :cyclic) :arguments)
                    (setf first (or first start))
-                   (make-ical-recur :daily :interval n :by-day (mapcar (lambda (wd) (cons nil wd)) (sort (copy-list (first (org-rule-arguments (kind :weekdays)))) #'<)))))
+                   (make-ical-recur :daily :interval n :by-day (mapcar (lambda (wd) (cons nil wd)) (sort (copy-list (first (org-rule-get (kind :weekdays) :arguments))) #'<)))))
                 ((rest parts) nil)
                 (t
                  (let ((main (first parts)))
-                   (destructuring-bind (&optional a b c d) (org-rule-arguments main)
-                     (case (org-rule-kind main)
+                   (destructuring-bind (&optional a b c d) (org-rule-get main :arguments)
+                     (case (org-rule-get main :kind)
                        (:float (and (integerp b) (null d)
                                     (cond ((eq a t) (make-ical-recur :monthly :by-day (list (cons c b))))
                                           ((integerp a) (make-ical-recur :yearly :by-month (list a) :by-day (list (cons c b))))
@@ -471,8 +474,8 @@ gives, or NIL for each; NIL when no rule of recurrence says it."
                        (:cyclic (setf first (or first b))
                         (if (zerop (mod a 7)) (make-ical-recur :weekly :interval (/ a 7)) (make-ical-recur :daily :interval a)))
                        ;; every so many weeks on several days: a cycle of weeks each
-                       (:any (let ((cycles (mapcar #'org-rule-arguments a)))
-                               (when (and (every (lambda (r) (eq (org-rule-kind r) :cyclic)) a)
+                       (:any (let ((cycles (mapcar (lambda (r) (org-rule-get r :arguments)) a)))
+                               (when (and (every (lambda (r) (eq (org-rule-get r :kind) :cyclic)) a)
                                           (every (lambda (c) (and (= (first c) (first (first cycles))) (zerop (mod (first c) 7)))) cycles))
                                  (setf first (or first (reduce #'min cycles :key #'second)))
                                  (make-ical-recur :weekly :interval (/ (first (first cycles)) 7)
@@ -494,7 +497,7 @@ gives, or NIL for each; NIL when no rule of recurrence says it."
 
 (defun timing-of-rule (text zone today agreed-start)
   "The properties saying the times of TEXT, a timestamp by rule, on ZONE's
-clock: DTSTART, DTEND and RRULE, the first time that of its range of days,
+clock: start (DTSTART), end (DTEND) and recurrence rule (RRULE), the first time that of its range of days,
 else AGREED-START (a day number) when the rule takes it, else the first the
 rule takes from the day number TODAY; NIL when no rule of recurrence says it."
   (let ((rule (org-read-rule text)))
@@ -505,10 +508,10 @@ rule takes from the day number TODAY; NIL when no rule of recurrence says it."
                            (and agreed-start (eql (org-rule-next rule agreed-start) agreed-start) agreed-start)
                            (org-rule-next rule today))))
             (when first
-              (let* ((hour (org-rule-hour rule))
-                     (start (+ (* 86400 first) (* 3600 (or hour 0)) (* 60 (or (org-rule-minute rule) 0))))
-                     (end (and hour (org-rule-end-hour rule)
-                               (+ (* 86400 first) (* 3600 (org-rule-end-hour rule)) (* 60 (org-rule-end-minute rule))))))
+              (let* ((hour (org-rule-get rule :hour))
+                     (start (+ (* 86400 first) (* 3600 (or hour 0)) (* 60 (or (org-rule-get rule :minute) 0))))
+                     (end (and hour (org-rule-get rule :end-hour)
+                               (+ (* 86400 first) (* 3600 (org-rule-get rule :end-hour)) (* 60 (org-rule-get rule :end-minute))))))
                 (when last
                   (setf (ical-recur-until recur)
                         (if hour
@@ -524,7 +527,7 @@ rule takes from the day number TODAY; NIL when no rule of recurrence says it."
 
 (defun entry-description (entry)
   "ENTRY's description, from its block (BLOCK-DESCRIPTION), or NIL."
-  (block-description (agenda-entry-text entry) (agenda-entry-position entry) (agenda-entry-end entry)))
+  (block-description (agenda-entry-get entry :text) (agenda-entry-get entry :position) (agenda-entry-get entry :end)))
 
 (defun unless-blank (text)
   "TEXT, or NIL when it is NIL or holds nothing but spaces and line breaks."
@@ -532,15 +535,15 @@ rule takes from the day number TODAY; NIL when no rule of recurrence says it."
 
 (defun entry-property (entry name)
   "The value of ENTRY's property NAME, or NIL."
-  (let ((value (cdr (assoc name (agenda-entry-properties entry) :test #'string-equal))))
+  (let ((value (cdr (assoc name (agenda-entry-get entry :properties) :test #'string-equal))))
     (and value (agenda-unguarded value))))
 
 (defun uid-day (uid text)
-  "The UID of the event of TEXT, a timestamp of an entry whose UID is UID
+  "The unique identifier (UID) of the event of TEXT, a timestamp of an entry whose UID is UID
 other than its first: UID and the day it says (UID-20261103)."
   (let ((ts (stamp-ends text)))
     (if ts
-        (multiple-value-bind (year month day) (day-date (org-ts-day-number ts))
+        (multiple-value-bind (year month day) (day-date (org-ts-get ts :day-number))
           (format nil "~a-~4,'0d~2,'0d~2,'0d" uid year month day))
         (format nil "~a-~36r" uid (string-hash text)))))
 
@@ -576,12 +579,13 @@ MANAGED's others after."
             (remove-if (lambda (p) (member (ical-property-name p) placed :test #'string-equal)) managed))))
 
 (defun agreed-members (agreed uid)
-  "The components of AGREED, a VCALENDAR or NIL, of UID: the one recurring first, those changing it after."
+  "The components of AGREED, a calendar (VCALENDAR) or NIL, of the unique identifier (UID) UID:
+the one recurring first, those changing it after."
   (and agreed (group-of-uid agreed uid)))
 
 (defun agreed-times-hold-p (members agreed zone stamp cancelled moved)
   "True when MEMBERS, an event as agreed with the calendar (of AGREED, its
-VCALENDAR), says the same times as an entry with the timestamp STAMP and the
+calendar (VCALENDAR)), says the same times as an entry with the timestamp STAMP and the
 times CANCELLED and MOVED (ORG-OCCURRENCE-NOTES): as Org would write them."
   (let* ((master (first members))
          (said (org-times-of master (rest members) (calendar-zones agreed) zone 0)))
@@ -593,7 +597,7 @@ times CANCELLED and MOVED (ORG-OCCURRENCE-NOTES): as Org would write them."
                   (null (set-exclusive-or m moved :test #'equal))))))))
 
 (defun new-uid ()
-  "A UID for an event made here, no other like it."
+  "A unique identifier (UID) for an event made here, no other like it."
   (format nil "~(~a~)@tuatara" (random-name)))
 
 (defun stamp-ends (text)
@@ -607,40 +611,42 @@ second, or NIL for a single one (ORG-READ-TS each)."
   "True when TEXT, a timestamp of an entry, says a time that repeats: by rule, or with a repeater."
   (or (org-rule-text-p text)
       (let ((ts (stamp-ends text)))
-        (and ts (org-ts-repeat-value ts) (plusp (org-ts-repeat-value ts))))))
+        (and ts (org-ts-get ts :repeat-value) (plusp (org-ts-get ts :repeat-value))))))
 
 (defun entry-components (entry &key agreed uid (zone (system-time-zone)) (now (get-universal-time)))
   "The events or the task ENTRY, an agenda entry (ORG-AGENDA-FILE-ENTRIES),
 says, on ZONE's clock: a list of components, each event's changes of its
-occurrences after it. Its UID property names the event of its first time;
-another time is another event, its UID that and the day. AGREED, a VCALENDAR
+occurrences after it. Its unique identifier (UID) property names the event of its first time;
+another time is another event, its UID that and the day. AGREED, a calendar (VCALENDAR)
 holding the events as the calendar last had them, gives what an entry does
 not say: the properties it keeps, the categories as written, and the times of
 an event whose times the entry does not say (written out, or said as the
 calendar said them). UID, when given, is the UID of an entry that has none
-yet (NEW-UID); DTSTAMP is NOW."
+yet (NEW-UID); time stamp (DTSTAMP) is NOW."
   (let* ((uid (one-line (or (entry-property entry *uid-property*) uid (new-uid))))
-         (local-tags (agenda-entry-local-tags entry))
+         (local-tags (agenda-entry-get entry :local-tags))
          (cancelled-tag (member *cancelled-tag* local-tags :test #'string=))
          (tags (remove *cancelled-tag* local-tags :test #'string=))
          ;; a field left blank, as a form leaves it, is none
          (description (unless-blank (entry-description entry)))
          (location (unless-blank (entry-property entry "LOCATION")))
-         (stamps (agenda-entry-stamps entry))
-         (ranges (mapcar (lambda (r) (format nil "~a--~a" (first r) (second r))) (agenda-entry-ranges entry)))
-         (task (and (agenda-entry-todo-type entry) (agenda-entry-deadline entry) (null stamps) (null ranges)))
+         (stamps (agenda-entry-get entry :stamps))
+         (ranges (mapcar (lambda (r) (format nil "~a--~a" (first r) (second r))) (agenda-entry-get entry :ranges)))
+         (task (and (agenda-entry-get entry :todo-type) (agenda-entry-get entry :deadline) (null stamps) (null ranges)))
          (times (cond (task nil)
                       ((or stamps ranges)
                        ;; in the order written
-                       (let ((text (agenda-entry-text entry)) (from (agenda-entry-position entry)))
+                       (let ((text (agenda-entry-get entry :text)) (from (agenda-entry-get entry :position)))
                          (sort (append stamps ranges) #'<
-                               :key (lambda (stamp) (or (search stamp text :start2 from :end2 (agenda-entry-end entry)) 0)))))
-                      ((and (agenda-entry-scheduled entry) (char= (char (agenda-entry-scheduled entry) 0) #\<))
-                       (list (agenda-entry-scheduled entry)))))
+                               :key (lambda (stamp) (or (search stamp text :start2 from :end2 (agenda-entry-get entry :end)) 0)))))
+                      ((and (agenda-entry-get entry :scheduled)
+                            (char= (char (agenda-entry-get entry :scheduled) 0) #\<))
+                       (list (agenda-entry-get entry :scheduled)))))
          (stamp-utc (let ((u now)) (universal-ical-time u)))
          (today (floor (zone-local-time zone now) 86400)))
     (multiple-value-bind (cancelled moved)
-        (org-occurrence-notes (agenda-entry-text entry) (agenda-entry-position entry) (agenda-entry-end entry))
+        (org-occurrence-notes (agenda-entry-get entry :text) (agenda-entry-get entry :position)
+                              (agenda-entry-get entry :end))
       (flet ((said (kept-master kind status)
                ;; what the entry says of an event, its kept properties KEPT-MASTER's
                (let ((categories (loop for tag in tags
@@ -649,7 +655,7 @@ yet (NEW-UID); DTSTAMP is NOW."
                                                               thereis (find tag (ical-texts (ical-property-value p)) :key #'tag-name :test #'equal)))
                                                    tag))))
                  (remove nil
-                         (list (make-ical-property "SUMMARY" (ical-text-escaped (summary-words (agenda-entry-title entry))))
+                         (list (make-ical-property "SUMMARY" (ical-text-escaped (summary-words (agenda-entry-get entry :title))))
                                (and location (make-ical-property "LOCATION" (ical-text-escaped location)))
                                (and categories (make-ical-property "CATEGORIES" (ical-texts-escaped categories)))
                                (and status (make-ical-property "STATUS" status))
@@ -665,13 +671,13 @@ yet (NEW-UID); DTSTAMP is NOW."
           (task
            (let* ((members (agreed-members agreed uid))
                   (kept (first members))
-                  (done (string= (symbol-name (agenda-entry-todo-type entry)) "DONE"))
+                  (done (string= (symbol-name (agenda-entry-get entry :todo-type)) "DONE"))
                   (timing (flet ((planned (name text)
                                    (let ((props (timing-of-stamp text zone)))
                                      (and props (let ((p (first props))) (make-ical-property name (ical-property-value p) (ical-property-parameters p)))))))
-                            (remove nil (list (planned "DUE" (agenda-entry-deadline entry))
-                                              (and (agenda-entry-scheduled entry) (planned "DTSTART" (agenda-entry-scheduled entry)))))))
-                  (closed (and done (agenda-entry-closed entry) (org-read-ts (agenda-entry-closed entry))))
+                            (remove nil (list (planned "DUE" (agenda-entry-get entry :deadline))
+                                              (and (agenda-entry-get entry :scheduled) (planned "DTSTART" (agenda-entry-get entry :scheduled)))))))
+                  (closed (and done (agenda-entry-get entry :closed) (org-read-ts (agenda-entry-get entry :closed))))
                   (status (cond (done "COMPLETED")
                                 ((and kept (string-equal (or (ical-value-of kept "STATUS") "") "COMPLETED")) "NEEDS-ACTION")
                                 (t (status-of kept)))))
@@ -748,13 +754,13 @@ yet (NEW-UID); DTSTAMP is NOW."
                                                                                                               (make-ical-time (floor l 86400) (mod l 86400) (ical-time-zone new))))))))))))))))))))))
 
 (defun entry-calendar (entry &rest arguments &key agreed uid zone now)
-  "A VCALENDAR of what ENTRY says (ENTRY-COMPONENTS, with AGREED, UID, ZONE
+  "A calendar (VCALENDAR) of what ENTRY says (ENTRY-COMPONENTS, with AGREED, the unique identifier (UID), ZONE
 and NOW), as COMPONENTS-CALENDAR makes one."
   (declare (ignore uid zone now))
   (components-calendar (apply #'entry-components entry arguments) agreed))
 
 (defun components-calendar (components agreed)
-  "A VCALENDAR of COMPONENTS, with the VTIMEZONE of each zone their times
+  "A calendar (VCALENDAR) of COMPONENTS, with the time zone (VTIMEZONE) of each zone their times
 name: AGREED's own (a VCALENDAR, or NIL), else one written from the system's
 zone of that name."
   (let* ((tzids (remove-duplicates

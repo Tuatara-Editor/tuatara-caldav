@@ -26,7 +26,7 @@
   "The most components of a calendar file read one within another: deeper is refused.")
 
 (defstruct (ical-property (:constructor make-ical-property (name value &optional parameters)))
-  "A property of a calendar file's component: its NAME in capitals (DTSTART),
+  "A property of a calendar file's component: its NAME in capitals, such as start (DTSTART),
 its VALUE as written (a string, escapes kept), and its PARAMETERS, a list of
 \(NAME . VALUES), the name in capitals and VALUES a list of strings."
   (name "" :type string)
@@ -34,14 +34,14 @@ its VALUE as written (a string, escapes kept), and its PARAMETERS, a list of
   (parameters nil :type list))
 
 (defstruct (ical-component (:constructor make-ical-component (name &optional properties components)))
-  "A component of a calendar file: its NAME in capitals (VCALENDAR, VEVENT),
+  "A component of a calendar file: its NAME in capitals: calendar (VCALENDAR), event (VEVENT),
 its PROPERTIES in the order written, and the COMPONENTS within it."
   (name "" :type string)
   (properties nil :type list)
   (components nil :type list))
 
 (defun ical-property-of (component name)
-  "COMPONENT's first property named NAME (DTSTART), or NIL."
+  "COMPONENT's first property named NAME, such as start (DTSTART), or NIL."
   (find name (ical-component-properties component) :key #'ical-property-name :test #'string-equal))
 
 (defun ical-properties-of (component name)
@@ -54,11 +54,12 @@ its PROPERTIES in the order written, and the COMPONENTS within it."
     (and property (ical-property-value property))))
 
 (defun ical-parameter-values-of (property name)
-  "The values of PROPERTY's parameter NAME (TZID), a list of strings; NIL when it has none."
+  "The values of PROPERTY's parameter NAME, such as time zone identifier (TZID), a list of strings; NIL
+when it has none."
   (cdr (assoc name (ical-property-parameters property) :test #'string-equal)))
 
 (defun ical-parameter-of (property name)
-  "The first value of PROPERTY's parameter NAME (TZID), or NIL."
+  "The first value of PROPERTY's parameter NAME, such as time zone identifier (TZID), or NIL."
   (first (ical-parameter-values-of property name)))
 
 (defun ical-components-of (component &optional name)
@@ -116,7 +117,7 @@ its PROPERTIES in the order written, and the COMPONENTS within it."
 
 (defun map-unfolded-lines (function text)
   "Call FUNCTION with each line of TEXT, unfolded, and the number of the line
-it begins on; empty lines left out. Lines may end in CR LF or LF alone."
+it begins on; empty lines left out. Lines may end in carriage return (CR) and line feed (LF) or line feed alone."
   (let ((end (length text)) (at 0) (number 1)
         (line (make-string-output-stream)) (line-number 1) (has nil))
     (flet ((flush ()
@@ -138,7 +139,7 @@ it begins on; empty lines left out. Lines may end in CR LF or LF alone."
 
 (defun icalendar-read (text)
   "The components TEXT, a calendar file's text, holds, in order (usually one
-VCALENDAR), as ICAL-COMPONENT structures. An ICALENDAR-ERROR when TEXT is
+calendar (VCALENDAR)), as ICAL-COMPONENT structures. An ICALENDAR-ERROR when TEXT is
 not a calendar file, holds more than *ICALENDAR-LARGEST* characters or
 components deeper than *ICALENDAR-DEEPEST*."
   (when (> (length text) *icalendar-largest*)
@@ -174,7 +175,7 @@ components deeper than *ICALENDAR-DEEPEST*."
 ;;; Writing
 
 (defun parameter-value-text (value)
-  "VALUE, a parameter's value, as written: ^ and line breaks and \" as RFC
+  "VALUE, a parameter's value, as written: ^ and line breaks and \" as Request for Comments (RFC)
 6868 writes them, quoted when it holds ; : or ,."
   (let ((encoded (if (find-if (lambda (c) (find c (load-time-value (coerce (list #\^ #\Newline #\") 'string) t))) value)
                      (with-output-to-string (out)
@@ -192,7 +193,8 @@ components deeper than *ICALENDAR-DEEPEST*."
     (cond ((< code #x80) 1) ((< code #x800) 2) ((< code #x10000) 3) (t 4))))
 
 (defun write-folded (line out)
-  "Write LINE to OUT folded at 75 octets, never inside a character, each line ending CR LF."
+  "Write LINE to OUT folded at 75 octets, never inside a character, each line ending carriage return
+(CR) and line feed (LF)."
   (let ((octets 0))
     (loop for c across line
           do (let ((size (char-octets c)))
@@ -217,7 +219,7 @@ components deeper than *ICALENDAR-DEEPEST*."
 
 (defun icalendar-write (components &optional stream)
   "COMPONENTS, a list of ICAL-COMPONENT structures or one, written as a
-calendar file: to STREAM, or as a string when STREAM is NIL. Lines end CR LF
+calendar file: to STREAM, or as a string when STREAM is NIL. Lines end carriage return (CR) and line feed (LF)
 and are folded at 75 octets."
   (labels ((component (c out)
              (write-folded (concatenate 'string "BEGIN:" (ical-component-name c)) out)
@@ -231,11 +233,11 @@ and are folded at 75 octets."
 
 (setf (documentation 'make-ical-property 'function) "A property of a component named NAME, its VALUE as written and its PARAMETERS, a list of (NAME . VALUES)."
       (documentation 'ical-property-p 'function) "True when the object given is an ICAL-PROPERTY."
-      (documentation 'ical-property-name 'function) "A property's name in capitals (DTSTART)."
+      (documentation 'ical-property-name 'function) "A property's name in capitals, such as start (DTSTART)."
       (documentation 'ical-property-value 'function) "A property's value as written, escapes kept."
       (documentation 'ical-property-parameters 'function) "A property's parameters, a list of (NAME . VALUES), VALUES a list of strings."
-      (documentation 'make-ical-component 'function) "A component named NAME (VEVENT) of PROPERTIES and the COMPONENTS within it."
+      (documentation 'make-ical-component 'function) "A component named NAME, such as event (VEVENT), of PROPERTIES and the COMPONENTS within it."
       (documentation 'ical-component-p 'function) "True when the object given is an ICAL-COMPONENT."
-      (documentation 'ical-component-name 'function) "A component's name in capitals (VCALENDAR, VEVENT)."
+      (documentation 'ical-component-name 'function) "A component's name in capitals, such as calendar (VCALENDAR) or event (VEVENT)."
       (documentation 'ical-component-properties 'function) "A component's properties, in the order written."
       (documentation 'ical-component-components 'function) "The components within a component, in the order written.")

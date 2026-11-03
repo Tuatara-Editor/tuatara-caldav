@@ -24,7 +24,7 @@ changed."
 
 (defun account-of (url)
   "The account of *CALDAV-ACCOUNTS* whose server holds the calendar at
-URL: the one on its host, else the first."
+web address (URL): the one on its host, else the first."
   (let ((host (nth-value 1 (url-parts url))))
     (or (find-if (lambda (a) (equal (nth-value 1 (url-parts (getf a :url))) host)) *caldav-accounts*)
         (first *caldav-accounts*))))
@@ -82,17 +82,31 @@ for a sync started on its own, which says nothing when nothing changed."
   :left-words "nothing written")
 
 (defmacro with-signed-in ((var account) &body body)
-  "Run BODY with VAR, ACCOUNT signed in (SIGNED-IN); its password wiped from
-memory when BODY ends, however it ends."
-  `(let ((,var (signed-in ,account)))
+  "Run BODY with the variable (VAR) holding ACCOUNT signed in (SIGNED-IN); its password wiped from
+memory when BODY ends, however it ends. Meanwhile the password is a secret at hand
+\(*SECRET-AT-HAND*), from asking for it on, in the threads started from BODY too: a failure is
+written to the debug log by its kind alone, without the calls under way or what they were given."
+  `(let* ((*secret-at-hand* t)
+          (,var (signed-in ,account)))
      (unwind-protect (progn ,@body)
        (let ((password (getf ,var :password)))
          (when (stringp password) (fill password #\Nul))))))
 
+(defun failure-said (condition)
+  "CONDITION in words for telling what failed: a server or a calendar file gone
+wrong (CALDAV-ERROR, ICALENDAR-ERROR) in the package's own words, in full; any
+other failure by its kind alone (\"a type-error\", FAILURE-WORDS with a secret at
+hand), as its words could hold the password of the account being synced."
+  (if (typep condition '(or caldav-error icalendar-error))
+      (princ-to-string condition)
+      (let ((*secret-at-hand* t))
+        (failure-words condition :said t))))
+
 (defmacro noting-failure ((job name) &body body)
-  "Run BODY; an error in it is noted among JOB's failures under NAME, and the work goes on."
+  "Run BODY; an error in it is noted among JOB's failures under NAME, in the words
+FAILURE-SAID gives, and the work goes on."
   `(handler-case (progn ,@body)
-     (error (e) (push (format nil "~a: ~a" ,name e) (caldav-job-failed ,job)))))
+     (error (e) (push (format nil "~a: ~a" ,name (failure-said e)) (caldav-job-failed ,job)))))
 
 (defun chosen-calendars (account calendars)
   "Those of CALENDARS, ACCOUNT's, its :CALENDARS names (any case), or every
@@ -164,7 +178,7 @@ next, (FAILURES . MISSING): said again only when it changes.")
       (tell-failures "Calendars not all synced" new-failures))))
 
 (define-command caldav-sync ()
-  "Sync the calendars of your CalDAV accounts (*caldav-accounts*) with
+  "Sync the calendars of your Calendaring Extensions to WebDAV (CalDAV) accounts (*caldav-accounts*) with
 the calendars' Org file (*caldav-file*), a heading each: what changed
 in an entry here is sent, what changed on the server is written into its
 entry, your own lines in it kept, and new events are added under their
@@ -258,7 +272,7 @@ Tuatara reaches the server, and what it finds there. In the background."
                                             (mapcar (lambda (c) (getf c :name)) calendars)
                                             (mapcar (lambda (c) (getf c :name)) (chosen-calendars account calendars)))
                                       (calendar-list-job-found job))))
-                            (error (e) (push (format nil "~a: ~a" (getf account :name) e) (calendar-list-job-failed job))))))
+                            (error (e) (push (format nil "~a: ~a" (getf account :name) (failure-said e)) (calendar-list-job-failed job))))))
                       :name "tuatara caldav list")
     (take-in-soon job 0 "Asking for the calendars")))
 
@@ -266,7 +280,8 @@ Tuatara reaches the server, and what it finds there. In the background."
 
 (defun missing-events ()
   "The events the calendars' file no longer has an entry of, under a
-calendar's heading that is there: each (FOLDER AGREED URL), URL the calendar's."
+calendar's heading that is there: each a folder, an agreed event and the
+calendar's web address (URL), as (FOLDER AGREED URL)."
   (let* ((text (buffer-string (calendars-buffer)))
          (sections (calendar-sections text (file-entries text))))
     (loop for section in sections
@@ -310,6 +325,22 @@ those that went; FAILED, what went wrong, in words."
            (length (calendar-delete-job-deleted job)) (reverse (calendar-delete-job-failed job)))
   (tell-failures "Events not all deleted on their servers" (reverse (calendar-delete-job-failed job))))
 
+(defun delete-missing-work (job)
+  "Delete on their servers the events of JOB's MISSING, each signed in to its
+account: JOB's work. What goes wrong with one event is noted, in the words
+FAILURE-SAID gives, and the others are deleted all the same."
+  (dolist (m (calendar-delete-job-missing job))
+    (destructuring-bind (folder agreed url) m
+      (declare (ignore folder))
+      (handler-case
+          (with-signed-in (signed (account-of url))
+            (let ((outcome (delete-event signed (agreed-url agreed) (agreed-etag agreed))))
+              (if (eq outcome :done)
+                  (push m (calendar-delete-job-deleted job))
+                  (push (format nil "~a changed on the server since: kept, sync first" (missing-title m))
+                        (calendar-delete-job-failed job)))))
+        (error (e) (push (format nil "~a: ~a" (missing-title m) (failure-said e)) (calendar-delete-job-failed job)))))))
+
 (define-command caldav-deleted ()
   "Delete on their servers the events whose entries were deleted from the
 calendars' file, after asking; or, answered no, put their entries back as
@@ -320,20 +351,7 @@ the server has them."
       ((yes-or-no-p* (format nil "Delete on the server ~:d event~:p deleted here (~{~a~^, ~})? n puts ~:*~:*~[them~;it~:;them~] back"
                              (length missing) (mapcar #'missing-title missing)))
        (let ((job (make-calendar-delete-job (current-buffer) missing)))
-         (start-job-thread job
-                           (lambda (job)
-                             (dolist (m missing)
-                               (destructuring-bind (folder agreed url) m
-                                 (declare (ignore folder))
-                                 (handler-case
-                                     (with-signed-in (signed (account-of url))
-                                       (let ((outcome (delete-event signed (agreed-url agreed) (agreed-etag agreed))))
-                                         (if (eq outcome :done)
-                                             (push m (calendar-delete-job-deleted job))
-                                             (push (format nil "~a changed on the server since: kept, sync first" (missing-title m))
-                                                   (calendar-delete-job-failed job)))))
-                                   (caldav-error (e) (push (format nil "~a: ~a" (missing-title m) e) (calendar-delete-job-failed job)))))))
-                           :name "tuatara caldav delete")
+         (start-job-thread job #'delete-missing-work :name "tuatara caldav delete")
          (take-in-soon job 0 "Deleting the events on their servers")))
       (t
        (put-into-calendars
@@ -351,16 +369,17 @@ the server has them."
 ;;; Calendar files
 
 (defun calendar-headings (text)
-  "The calendars' headings of TEXT, the calendars' file, each (TITLE . URL)."
+  "The calendars' headings of TEXT, the calendars' file, each a title and the calendar's web address
+(URL), as (TITLE . URL)."
   (loop for section in (calendar-sections text (file-entries text))
-        collect (cons (agenda-entry-title (getf section :entry)) (getf section :url))))
+        collect (cons (agenda-entry-get (getf section :entry) :title) (getf section :url))))
 
 (defparameter *not-synced* "Not synced: under a heading of its own"
   "The choice of CALDAV-IMPORT that puts what it reads under a heading of its own.")
 
 (defstruct (calendar-import-job (:include job) (:constructor make-calendar-import-job (buffer path url)) (:copier nil))
   "Reading the calendar file at PATH into the calendars' file, under the
-calendar at URL (NIL for a heading of its own): ENTRIES, its events as Org
+calendar at the web address (URL), NIL for a heading of its own: ENTRIES, its events as Org
 entries; COUNT, how many; FAILED, what went wrong, in words."
   path url entries (count 0) failed)
 
@@ -426,11 +445,11 @@ tags and description."
          (chosen (if region
                      (let ((from (length (buffer-string buffer :end (first region))))
                            (to (length (buffer-string buffer :end (second region)))))
-                       (remove-if-not (lambda (e) (and (< (agenda-entry-position e) to) (> (agenda-entry-end e) from))) entries))
+                       (remove-if-not (lambda (e) (and (< (agenda-entry-get e :position) to) (> (agenda-entry-get e :end) from))) entries))
                      (let* ((at (length (buffer-string buffer :end (buffer-point buffer))))
-                            (here (find-if (lambda (e) (<= (agenda-entry-position e) at)) entries :from-end t)))
+                            (here (find-if (lambda (e) (<= (agenda-entry-get e :position) at)) entries :from-end t)))
                        (and here (cons here (loop for e in (rest (member here entries))
-                                                  while (> (agenda-entry-level e) (agenda-entry-level here))
+                                                  while (> (agenda-entry-get e :level) (agenda-entry-get here :level))
                                                   collect e))))))
          (calendars (loop for e in chosen
                           for c = (ignore-errors (entry-calendar e))

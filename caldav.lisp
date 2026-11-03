@@ -1,13 +1,14 @@
 ;;;; caldav.lisp --- The caldav package: the agenda shared with other calendars over CalDAV.
 ;;;; Copyright (C) 2026 Michael A Jones.  GPL-3.0-or-later; see LICENSE.
+;;;; Needs: Tuatara 0.90.14
 ;;;;
 ;;;; One line in the init file loads it: (load-package "caldav").
 
 (defpackage #:caldav
   (:use #:cl #:tuatara)
   (:documentation "The agenda shared with GNOME Calendar, Thunderbird and phones through a
-CalDAV server all of them use (Radicale, or EteSync through etesync-dav):
-calendar files (iCalendar) read and written, nothing lost; their values,
+Calendaring Extensions to WebDAV (CalDAV) server all of them use (Radicale, or EteSync through etesync-dav):
+calendar files (iCalendar, the Internet Calendaring and Scheduling format) read and written, nothing lost; their values,
 time zones and rules of recurrence; and the occurrences of their events and
 tasks within the days asked for. A calendar file is never trusted: what it
 holds is only read, and its size, nesting and occurrences are bounded."))
@@ -24,7 +25,7 @@ and only what is under a calendar's heading is synced, the rest of the file
 left as it is.")
 
 (define-package-setting *caldav-accounts* '()
-  "The CalDAV accounts whose calendars are synced, each a list of keywords
+  "The Calendaring Extensions to WebDAV (CalDAV) accounts whose calendars are synced, each a list of keywords
 and values: :NAME, what its calendars' headings are named after (\"EteSync\");
 :URL, the server's address, https, or http to this machine alone (EteSync's
 own bridge, etesync-dav, at http://localhost:37358/); :USER, the name it

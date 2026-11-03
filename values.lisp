@@ -56,14 +56,14 @@ ICAL-TEXT reads one."
 (defstruct (ical-time (:constructor make-ical-time (day &optional second zone)))
   "A date or a time of a calendar file: its DAY (a day number, as DAY-NUMBER
 counts), SECOND, seconds into that day, or NIL for a date alone, and its
-ZONE: :UTC, a time zone's name as the file's TZID gives it, or NIL for a
+ZONE: :UTC, a time zone's name as the file's time zone identifier (TZID) gives it, or NIL for a
 floating time, counted on whatever clock reads it."
   (day 0 :type integer)
   (second nil)
   (zone nil))
 
 (defun universal-ical-time (universal)
-  "The universal time UNIVERSAL as an ICAL-TIME in UTC."
+  "The universal time UNIVERSAL as an ICAL-TIME in Coordinated Universal Time (UTC)."
   (make-ical-time (floor universal 86400) (mod universal 86400) :utc))
 
 (defun ical-local (time)
@@ -75,14 +75,15 @@ floating time, counted on whatever clock reads it."
   (null (ical-time-second time)))
 
 (defun digits-at (text at count)
-  "The number COUNT ASCII digits at AT of TEXT write, or NIL."
+  "The number COUNT American Standard Code for Information Interchange (ASCII) digits at AT of TEXT write, or NIL."
   (and (<= (+ at count) (length text))
        (loop for i from at below (+ at count) always (char<= #\0 (char text i) #\9))
        (parse-integer text :start at :end (+ at count))))
 
 (defun read-ical-time (value &optional zone)
   "VALUE, a date (20261102) or a date and time (20261102T090000, with Z for
-UTC) as written, as an ICAL-TIME; ZONE, a TZID's name, for a time without Z.
+Coordinated Universal Time (UTC)) as written, as an ICAL-TIME; ZONE, the name in a time zone identifier
+(TZID), for a time without Z.
 NIL when VALUE is neither."
   (let* ((value (string-trim " " value))
          (year (digits-at value 0 4)) (month (digits-at value 4 2)) (day (digits-at value 6 2)))
@@ -99,7 +100,8 @@ NIL when VALUE is neither."
                              (if utc :utc zone)))))))))
 
 (defun ical-time-text (time)
-  "TIME, an ICAL-TIME, as its value is written: 20261102, 20261102T090000, or with Z when in UTC."
+  "TIME, an ICAL-TIME, as its value is written: 20261102, 20261102T090000, or with Z when in Coordinated
+Universal Time (UTC)."
   (multiple-value-bind (year month day) (day-date (ical-time-day time))
     (if (ical-time-date-p time)
         (format nil "~4,'0d~2,'0d~2,'0d" year month day)
@@ -109,8 +111,8 @@ NIL when VALUE is neither."
                     (eq (ical-time-zone time) :utc)))))))
 
 (defun ical-property-times (property)
-  "The times PROPERTY's value gives (DTSTART, or the list of an EXDATE or
-RDATE), as ICAL-TIME structures, its TZID their zone; a period's start for
+  "The times PROPERTY's value gives (start (DTSTART), or the list of excluded dates (EXDATE) or
+added dates (RDATE)), as ICAL-TIME structures, its time zone identifier (TZID) their zone; a period's start for
 a period. Values that are no time are left out."
   (let ((zone (ical-parameter-of property "TZID")))
     (loop for part in (uiop:split-string (ical-property-value property) :separator ",")
@@ -118,11 +120,12 @@ a period. Values that are no time are left out."
           when time collect time)))
 
 (defun ical-property-time (property)
-  "The time PROPERTY's value gives (DTSTART), an ICAL-TIME; NIL when it gives none."
+  "The time PROPERTY's value gives, as start (DTSTART), an ICAL-TIME; NIL when it gives none."
   (and property (first (ical-property-times property))))
 
 (defun ical-time-property (name time)
-  "A property NAME (DTSTART) of TIME, an ICAL-TIME: VALUE=DATE for a date, its TZID for a time in a named zone."
+  "A property NAME, such as start (DTSTART), of TIME, an ICAL-TIME: VALUE=DATE for a date, its time zone
+identifier (TZID) for a time in a named zone."
   (make-ical-property name (ical-time-text time)
                       (cond ((ical-time-date-p time) (list (list "VALUE" "DATE")))
                             ((stringp (ical-time-zone time)) (list (list "TZID" (ical-time-zone time)))))))
@@ -164,7 +167,8 @@ it counts (weeks seven each), and the seconds. NIL when VALUE is no duration."
                 (and (plusp hours) hours) (and (plusp minutes) minutes) (and (plusp secs) secs))))))
 
 (defun read-utc-offset (value)
-  "VALUE, an offset from UTC as written (+0100, -053000), as seconds east of UTC; NIL when it is none."
+  "VALUE, an offset from Coordinated Universal Time (UTC) as written (+0100, -053000), as seconds east
+of UTC; NIL when it is none."
   (let* ((value (string-trim " " value))
          (hours (digits-at value 1 2)) (minutes (digits-at value 3 2))
          (seconds (if (= (length value) 7) (digits-at value 5 2) 0)))
@@ -172,7 +176,7 @@ it counts (weeks seven each), and the seconds. NIL when VALUE is no duration."
       (* (if (char= (char value 0) #\-) -1 1) (+ (* 3600 hours) (* 60 minutes) seconds)))))
 
 (defun utc-offset-text (offset)
-  "OFFSET, seconds east of UTC, as written: +0100, -0530, +053010 with seconds."
+  "OFFSET, seconds east of Coordinated Universal Time (UTC), as written: +0100, -0530, +053010 with seconds."
   (multiple-value-bind (hours rest) (floor (abs offset) 3600)
     (multiple-value-bind (minutes seconds) (floor rest 60)
       (format nil "~:[+~;-~]~2,'0d~2,'0d~:[~;~:*~2,'0d~]" (minusp offset) hours minutes (and (plusp seconds) seconds)))))
@@ -181,7 +185,7 @@ it counts (weeks seven each), and the seconds. NIL when VALUE is no duration."
 
 (defstruct (ical-recur (:constructor make-ical-recur (freq &key (interval 1) count until by-second by-minute by-hour by-day
                                                               by-month-day by-year-day by-week-no by-month by-set-pos (week-start 1))))
-  "A rule of recurrence (RRULE): FREQ, one of :SECONDLY :MINUTELY :HOURLY
+  "A rule of recurrence (RRULE): frequency (FREQ), one of :SECONDLY :MINUTELY :HOURLY
 :DAILY :WEEKLY :MONTHLY :YEARLY; every INTERVALth; COUNT times in all or
 UNTIL an ICAL-TIME, or neither; the BY- parts, lists of numbers, BY-DAY a
 list of (ORDINAL . WEEKDAY), ORDINAL NIL for every such weekday and WEEKDAY
@@ -277,7 +281,8 @@ rule, or has a part out of its range. Parts it does not know are left out."
           (ical-recur-by-hour recur) (ical-recur-by-minute recur) (ical-recur-by-second recur) (ical-recur-by-set-pos recur)
           (and (/= 1 (ical-recur-week-start recur)) (aref *recur-weekdays* (ical-recur-week-start recur)))))
 
-(setf (documentation 'make-ical-time 'function) "An ICAL-TIME of DAY (a day number), SECOND into it, NIL for a date alone, and ZONE: :UTC, a TZID's name, or NIL for a floating time."
+(setf (documentation 'make-ical-time 'function) "An ICAL-TIME of DAY (a day number), SECOND into it, NIL
+for a date alone, and ZONE: :UTC, the name in a time zone identifier (TZID), or NIL for a floating time."
       (documentation 'ical-time-p 'function) "True when the object given is an ICAL-TIME."
       (documentation 'ical-time-day 'function) "The day of an ICAL-TIME, a day number as DAY-NUMBER counts."
       (documentation 'ical-time-second 'function) "The seconds into its day of an ICAL-TIME, or NIL for a date alone."

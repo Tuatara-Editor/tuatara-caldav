@@ -337,7 +337,11 @@ before TO, local times all, the first MOST of them."
 (defun cs-entries (calendar &rest arguments)
   "CALENDAR's entries as the package writes them, and as the agenda reads them back: two values."
   (let ((text (apply #'caldav::calendar-entries calendar :zone (cs-zone) :now (cs-now) arguments)))
-    (values text (tuatara.defaults::org-agenda-file-entries "/x/agenda_caldav.org" (format nil "* Calendar~%~a" text)))))
+    (values text (tuatara:org-agenda-file-entries "/x/agenda_caldav.org" (format nil "* Calendar~%~a" text)))))
+
+(defun cs-titled (title entries)
+  "The entry of ENTRIES whose title is TITLE."
+  (find title entries :key (lambda (entry) (tuatara:agenda-entry-get entry :title)) :test #'string=))
 
 (defun cs-sent (entry &rest arguments)
   "What ENTRY says as events, on the tests' clock and at their now."
@@ -411,13 +415,13 @@ end, a note, a checkbox, timestamps and a clock.")
                                <2026-10-30 Fri>~%<2026-11-30 Mon>~%<2026-12-31 Thu>~%")
           text)
       ;; as the agenda reads them: the times cancelled and moved, and each rule the days the calendar says
-      (let ((weekly (find "Stand-up" entries :key #'tuatara:agenda-entry-title :test #'string=)))
+      (let ((weekly (cs-titled "Stand-up" entries)))
         (multiple-value-bind (cancelled moved)
-            (tuatara:org-occurrence-notes (tuatara:agenda-entry-text weekly) (tuatara:agenda-entry-position weekly) (tuatara:agenda-entry-end weekly))
+            (tuatara:org-occurrence-notes (tuatara:agenda-entry-get weekly :text) (tuatara:agenda-entry-get weekly :position) (tuatara:agenda-entry-get weekly :end))
           (is equal (list (cons (tuatara:day-number 2026 11 10) 900)) cancelled)
           (is equal (list (cons (cons (tuatara:day-number 2026 11 17) 900) (cons (tuatara:day-number 2026 11 18) 1400))) moved)))
       (flet ((days (title from count)
-               (let ((rule (tuatara:org-read-rule (first (tuatara:agenda-entry-stamps (find title entries :key #'tuatara:agenda-entry-title :test #'string=))))))
+               (let ((rule (tuatara:org-read-rule (first (tuatara:agenda-entry-get (cs-titled title entries) :stamps)))))
                  (loop repeat count
                        for day = (tuatara:org-rule-next rule from) then (tuatara:org-rule-next rule (1+ day))
                        while day collect (multiple-value-list (tuatara:day-date day))))))
@@ -433,16 +437,16 @@ end, a note, a checkbox, timestamps and a clock.")
                                "LOCATION:Room <2026-11-06 Fri>"
                                "DTSTART;VALUE=DATE:20261103" "END:VEVENT")))
     (multiple-value-bind (text entries) (cs-entries calendar)
-      (let ((entry (find "odd@example.org" entries :key (lambda (e) (cdr (assoc "UID" (tuatara:agenda-entry-properties e) :test #'string=))) :test #'equal)))
+      (let ((entry (find "odd@example.org" entries :key (lambda (e) (cdr (assoc "UID" (tuatara:agenda-entry-get e :properties) :test #'string=))) :test #'equal)))
         (true entry "the heading is one: ~a" text)
         ;; nothing in it the agenda reads but its own day: no keyword, tags, other times, notes, clocks or tasks
         (is = 2 (length entries))
-        (false (tuatara:agenda-entry-todo entry))
-        (is equal '() (tuatara:agenda-entry-local-tags entry))
-        (is equal '("<2026-11-03 Tue>") (tuatara:agenda-entry-stamps entry))
-        (false (tuatara.defaults::agenda-entry-logs entry))
-        (is equal '(nil nil) (multiple-value-list (tuatara:org-occurrence-notes (tuatara:agenda-entry-text entry) (tuatara:agenda-entry-position entry) (tuatara:agenda-entry-end entry))))
-        (false (search "[[" (tuatara:agenda-entry-title entry)))
+        (false (tuatara:agenda-entry-get entry :todo))
+        (is equal '() (tuatara:agenda-entry-get entry :local-tags))
+        (is equal '("<2026-11-03 Tue>") (tuatara:agenda-entry-get entry :stamps))
+        (false (tuatara:agenda-entry-get entry :logs))
+        (is equal '(nil nil) (multiple-value-list (tuatara:org-occurrence-notes (tuatara:agenda-entry-get entry :text) (tuatara:agenda-entry-get entry :position) (tuatara:agenda-entry-get entry :end))))
+        (false (search "[[" (tuatara:agenda-entry-get entry :title)))
         ;; and each read back as the calendar said it
         (let ((event (first (cs-sent entry))))
           (is string= "TODO [[file:/etc/passwd]] costs $5 \\input{x} <2026-11-05 Thu> :x:"
@@ -452,7 +456,7 @@ end, a note, a checkbox, timestamps and a clock.")
 
 (defun cs-entry (text)
   "The agenda entry of TEXT, one entry, as the agenda reads it."
-  (first (tuatara.defaults::org-agenda-file-entries "/x/agenda_caldav.org" text)))
+  (first (tuatara:org-agenda-file-entries "/x/agenda_caldav.org" text)))
 
 (defun cs-property-line (component name)
   "COMPONENT's property NAME as one line, or NIL."
@@ -528,8 +532,8 @@ end, a note, a checkbox, timestamps and a clock.")
                                 "BEGIN:VEVENT" "UID:pay@example.org" "SUMMARY:Payday" "DTSTART;VALUE=DATE:20261030"
                                 "RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1" "END:VEVENT"))
          (entries (nth-value 1 (cs-entries calendar)))
-         (weekly (first (cs-sent (find "Stand-up" entries :key #'tuatara:agenda-entry-title :test #'string=) :agreed calendar)))
-         (pay (first (cs-sent (find "Payday" entries :key #'tuatara:agenda-entry-title :test #'string=) :agreed calendar))))
+         (weekly (first (cs-sent (cs-titled "Stand-up" entries) :agreed calendar)))
+         (pay (first (cs-sent (cs-titled "Payday" entries) :agreed calendar))))
     (is equal '("DTSTART;TZID=Europe/Stockholm:20261103T090000" "DURATION:PT30M" "RRULE:FREQ=WEEKLY;BYDAY=TU"
                 "EXDATE;TZID=Europe/Stockholm:20261110T090000" "SEQUENCE:4" "X-CLIENT-THING:kept" "CATEGORIES:Public Holiday")
         (mapcar (lambda (name) (cs-property-line weekly name))
@@ -550,7 +554,7 @@ end, a note, a checkbox, timestamps and a clock.")
   (let* ((calendar (cs-calendar "BEGIN:VEVENT" "UID:birthday@example.org" "DTSTART;VALUE=DATE:20260702"
                                 "DTEND;VALUE=DATE:20260703" "CREATED:20260615T125119Z" "RRULE:FREQ=YEARLY"
                                 "SEQUENCE:1" "SUMMARY:Birthday" "TRANSP:TRANSPARENT" "X-MOZ-GENERATION:1" "END:VEVENT"))
-         (entry (find "Birthday" (nth-value 1 (cs-entries calendar)) :key #'tuatara:agenda-entry-title :test #'string=))
+         (entry (cs-titled "Birthday" (nth-value 1 (cs-entries calendar))))
          (sent (cs-sent entry :agreed calendar))
          (names (mapcar #'caldav::ical-property-name (caldav::ical-component-properties (first sent)))))
     (is equal (remove-duplicates names :test #'string-equal :from-end t) names)
@@ -969,6 +973,75 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
        (error "midway")))
     (true (every (lambda (c) (char= c (code-char 0))) kept))))
 
+(define-test (caldav other-failures-told-by-kind)
+  ;; a failure not the package's own, its words holding the password, is told by its kind alone
+  (let ((told '())
+        (caldav::*told-last* nil)
+        (tuatara-user::*caldav-accounts* '((:name "Home" :url "https://cal.example.org/" :user "kiwi"
+                                            :password-command "printf kiwi-fake-pass")))
+        (tuatara-user::*caldav-subscriptions* '())
+        (caldav::*transport* (lambda (method url &key user password &allow-other-keys)
+                               (declare (ignore method url))
+                               (error "~a" (format nil "signed in as ~a:~a" user password))))
+        (job (caldav::make-caldav-job nil nil)))
+    (sb-int:encapsulate 'tuatara:notify 'cs-told
+                        (lambda (function title words &rest keys) (declare (ignore function keys)) (push (list title words) told)))
+    (unwind-protect
+         (progn
+           (caldav::sync-work job "")
+           (is equal '("Home: a simple-error") (caldav::caldav-job-failed job))
+           (caldav::job-take-in job)
+           (is = 1 (length told))
+           (false (search "kiwi-fake-pass" (second (first told))) "~a" told))
+      (sb-int:unencapsulate 'tuatara:notify 'cs-told)))
+  ;; the package's own failures keep their words
+  (is string= "https://cal.example.org/ not reached: no answer"
+      (handler-case (caldav::caldav-fail "https://cal.example.org/ not reached: no answer")
+        (error (e) (caldav::failure-said e)))))
+
+(define-test (caldav deletion-failures-told-by-kind)
+  ;; deleting events: a failure not the package's own, its words holding the password, is noted by its kind alone
+  (let* ((tuatara-user::*caldav-accounts* '((:name "Home" :url "https://cal.example.org/" :user "kiwi"
+                                             :password-command "printf kiwi-fake-pass")))
+         (caldav::*transport* (lambda (method url &key user password &allow-other-keys)
+                                (declare (ignore method url))
+                                (error "~a" (format nil "signed in as ~a:~a" user password))))
+         (url "https://cal.example.org/kiwi/home/")
+         (missing (list (list "/nowhere/" (caldav::make-agreed (concatenate 'string url "walk.ics") "\"1\"" "walk.ics"
+                                                               "walk@example.org")
+                              url)))
+         (job (caldav::make-calendar-delete-job nil missing)))
+    (caldav::delete-missing-work job)
+    (is equal '() (caldav::calendar-delete-job-deleted job))
+    (is equal '("walk@example.org: a simple-error") (caldav::calendar-delete-job-failed job))))
+
+(define-test (caldav password-kept-out-of-the-debug-log)
+  ;; a failure while signed in is logged by its kind alone: no password, no call's arguments
+  (let ((log (merge-pathnames (format nil "tuatara-cs-debug-~d.log" (sb-posix:getpid)) (uiop:temporary-directory))))
+    (unwind-protect
+         (let ((tuatara.runtime:*debug-log-path* (namestring log))
+               (tuatara.runtime::*debug-log-begun* nil)
+               (caldav::*transport* (lambda (method url &rest r)
+                                      (declare (ignore method r))
+                                      (tuatara:ignoring-errors-reported ("answering ~a" url)
+                                        (error "the stand-in server broke on ~a" url))
+                                      (values 500 '() ""))))
+           (clrhash tuatara.runtime::*error-report-places*)
+           (tuatara.runtime:set-debug t)
+           (caldav::with-signed-in (signed '(:name "Home" :url "https://cal.example.org/" :user "kiwi"
+                                             :password-command "printf kiwi-fake-pass"))
+             (is = 500 (caldav::request signed "PROPFIND" "https://cal.example.org/kiwi/")))
+           (tuatara.runtime:set-debug nil)
+           (let ((written (file-text log)))
+             (true (search "failed: a simple-error" written) "~a" written)
+             (false (search "kiwi-fake-pass" written) "~a" written)
+             (false (search "cal.example.org" written) "~a" written)
+             (false (search "the stand-in server broke" written) "~a" written)))
+      (tuatara.runtime:set-debug nil)
+      (loop while (sb-concurrency:dequeue tuatara.runtime:*debug-reports*))
+      (dolist (type '("log" "log.1" "log.2" "log.3"))
+        (uiop:delete-file-if-exists (make-pathname :type type :defaults log))))))
+
 (define-test (caldav syncs-on-their-own)
   (let ((started '())
         (caldav::*next-sync* nil)
@@ -1023,7 +1096,7 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
                              text)
                      "~a" text)
                ;; an entry the next sync sends as an event
-               (let ((entry (find "Dentist" (tuatara.defaults::org-agenda-file-entries file text) :key #'tuatara:agenda-entry-title :test #'string=)))
+               (let ((entry (cs-titled "Dentist" (tuatara:org-agenda-file-entries file text))))
                  (true entry)
                  ;; sent with its place and description
                  (let ((event (first (cs-sent entry))))
@@ -1034,7 +1107,7 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
              (run-keys "M-x c a l d a v - e v e n t - n e w RET H o m e RET L u n c h RET RET 2 0 2 6 - 1 1 - 0 6 SPC 1 2 : 0 0 RET C-c C-c"
                        :text "x" :width 120 :height 16)
              (let* ((text (file-text file))
-                    (entry (find "Lunch" (tuatara.defaults::org-agenda-file-entries file text) :key #'tuatara:agenda-entry-title :test #'string=))
+                    (entry (cs-titled "Lunch" (tuatara:org-agenda-file-entries file text)))
                     (event (first (cs-sent entry))))
                (true (search "<2026-11-06 Fri 12:00>" text) "~a" text)
                (is string= "Lunch" (caldav::ical-value-of event "SUMMARY"))
