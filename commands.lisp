@@ -325,6 +325,22 @@ those that went; FAILED, what went wrong, in words."
            (length (calendar-delete-job-deleted job)) (reverse (calendar-delete-job-failed job)))
   (tell-failures "Events not all deleted on their servers" (reverse (calendar-delete-job-failed job))))
 
+(defun delete-missing-work (job)
+  "Delete on their servers the events of JOB's MISSING, each signed in to its
+account: JOB's work. What goes wrong with one event is noted, in the words
+FAILURE-SAID gives, and the others are deleted all the same."
+  (dolist (m (calendar-delete-job-missing job))
+    (destructuring-bind (folder agreed url) m
+      (declare (ignore folder))
+      (handler-case
+          (with-signed-in (signed (account-of url))
+            (let ((outcome (delete-event signed (agreed-url agreed) (agreed-etag agreed))))
+              (if (eq outcome :done)
+                  (push m (calendar-delete-job-deleted job))
+                  (push (format nil "~a changed on the server since: kept, sync first" (missing-title m))
+                        (calendar-delete-job-failed job)))))
+        (error (e) (push (format nil "~a: ~a" (missing-title m) (failure-said e)) (calendar-delete-job-failed job)))))))
+
 (define-command caldav-deleted ()
   "Delete on their servers the events whose entries were deleted from the
 calendars' file, after asking; or, answered no, put their entries back as
@@ -335,20 +351,7 @@ the server has them."
       ((yes-or-no-p* (format nil "Delete on the server ~:d event~:p deleted here (~{~a~^, ~})? n puts ~:*~:*~[them~;it~:;them~] back"
                              (length missing) (mapcar #'missing-title missing)))
        (let ((job (make-calendar-delete-job (current-buffer) missing)))
-         (start-job-thread job
-                           (lambda (job)
-                             (dolist (m missing)
-                               (destructuring-bind (folder agreed url) m
-                                 (declare (ignore folder))
-                                 (handler-case
-                                     (with-signed-in (signed (account-of url))
-                                       (let ((outcome (delete-event signed (agreed-url agreed) (agreed-etag agreed))))
-                                         (if (eq outcome :done)
-                                             (push m (calendar-delete-job-deleted job))
-                                             (push (format nil "~a changed on the server since: kept, sync first" (missing-title m))
-                                                   (calendar-delete-job-failed job)))))
-                                   (caldav-error (e) (push (format nil "~a: ~a" (missing-title m) e) (calendar-delete-job-failed job)))))))
-                           :name "tuatara caldav delete")
+         (start-job-thread job #'delete-missing-work :name "tuatara caldav delete")
          (take-in-soon job 0 "Deleting the events on their servers")))
       (t
        (put-into-calendars

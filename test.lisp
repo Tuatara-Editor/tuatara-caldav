@@ -999,6 +999,22 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
       (handler-case (caldav::caldav-fail "https://cal.example.org/ not reached: no answer")
         (error (e) (caldav::failure-said e)))))
 
+(define-test (caldav deletion-failures-told-by-kind)
+  ;; deleting events: a failure not the package's own, its words holding the password, is noted by its kind alone
+  (let* ((tuatara-user::*caldav-accounts* '((:name "Home" :url "https://cal.example.org/" :user "kiwi"
+                                             :password-command "printf kiwi-fake-pass")))
+         (caldav::*transport* (lambda (method url &key user password &allow-other-keys)
+                                (declare (ignore method url))
+                                (error "~a" (format nil "signed in as ~a:~a" user password))))
+         (url "https://cal.example.org/kiwi/home/")
+         (missing (list (list "/nowhere/" (caldav::make-agreed (concatenate 'string url "walk.ics") "\"1\"" "walk.ics"
+                                                               "walk@example.org")
+                              url)))
+         (job (caldav::make-calendar-delete-job nil missing)))
+    (caldav::delete-missing-work job)
+    (is equal '() (caldav::calendar-delete-job-deleted job))
+    (is equal '("walk@example.org: a simple-error") (caldav::calendar-delete-job-failed job))))
+
 (define-test (caldav password-kept-out-of-the-debug-log)
   ;; a failure while signed in is logged by its kind alone: no password, no call's arguments
   (let ((log (merge-pathnames (format nil "tuatara-cs-debug-~d.log" (sb-posix:getpid)) (uiop:temporary-directory))))
