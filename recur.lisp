@@ -31,7 +31,7 @@ the first week with four of its days or more in YEAR."
     (if (<= (- first start) 3) start (+ start 7))))
 
 (defun matches-number (n count list)
-  "True when N, 1 to COUNT, is in LIST as itself or as N - COUNT - 1, counted from the end."
+  "True when N, 1 to COUNT, is in LIST as itself or as N minus COUNT minus 1, counted from the end."
   (or (member n list) (member (- n count 1) list)))
 
 (defun day-allowed (recur day year days &key month-days week-days)

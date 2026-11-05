@@ -30,7 +30,7 @@ and values: :NAME, what its calendars' headings are named after (\"EteSync\");
 :URL, the server's address, https, or http to this machine alone (EteSync's
 own bridge, etesync-dav, at http://localhost:37358/); :USER, the name it
 signs in with; and :CALENDARS, the names of those of its calendars to sync,
-every one when it is not given (M-x caldav-calendars lists them):
+every one when it is not given (M-x caldav-calendars lists them). An example:
 
   (:name \"EteSync\" :url \"http://localhost:37358/\" :user \"you\"
    :calendars (\"Personal\" \"Family\"))
@@ -39,7 +39,7 @@ The password is kept in the desktop's keyring, never here:
 
   secret-tool store --label=\"Tuatara calendars\" service tuatara-caldav user USER
 
-or in a file of your own a command gives it from, as mbsync's PassCmd: an
+or in a file of your own a command gives it from, as mbsync's PassCmd does. An
 account's :PASSWORD-COMMAND is run, no shell, and the first line it prints
 is the password, a GnuPG file's passphrase asked in gpg-agent's window:
 

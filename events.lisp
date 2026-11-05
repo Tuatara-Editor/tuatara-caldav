@@ -64,7 +64,7 @@ nothing is left."
 (defun agenda-guarded (text)
   "TEXT with a mark where the agenda would read it as more than words: after
 each < that begins a timestamp, after CLOCK and CLOSED before their colon,
-and after the - of a note's - State."
+and after the hyphen in front of State in a note."
   (cl-ppcre:regex-replace-all "<(?=\\d|%%)|\\b(?:CLOCK|CLOSED)(?=:)|-(?=[ \\t]+State[ \\t])" text
                               (lambda (match) (concatenate 'string match *mark*))
                               :simple-calls t))

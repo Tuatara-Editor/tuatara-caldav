@@ -34,7 +34,7 @@ its VALUE as written (a string, escapes kept), and its PARAMETERS, a list of
   (parameters nil :type list))
 
 (defstruct (ical-component (:constructor make-ical-component (name &optional properties components)))
-  "A component of a calendar file: its NAME in capitals: calendar (VCALENDAR), event (VEVENT),
+  "A component of a calendar file: its NAME in capitals, as calendar (VCALENDAR), event (VEVENT),
 its PROPERTIES in the order written, and the COMPONENTS within it."
   (name "" :type string)
   (properties nil :type list)
