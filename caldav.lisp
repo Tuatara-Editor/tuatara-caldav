@@ -1,6 +1,6 @@
 ;;;; caldav.lisp --- The caldav package: the agenda shared with other calendars over CalDAV.
 ;;;; Copyright (C) 2026 Michael A Jones.  GPL-3.0-or-later; see LICENSE.
-;;;; Needs: Tuatara 0.90.14
+;;;; Needs: Tuatara 0.90.20
 ;;;;
 ;;;; One line in the init file loads it: (load-package "caldav").
 
@@ -14,6 +14,11 @@ tasks within the days asked for. A calendar file is never trusted: what it
 holds is only read, and its size, nesting and occurrences are bounded."))
 
 (in-package #:caldav)
+
+(declare-package-needs
+ '("curl" "talks to the calendar server" :required t :install "install curl")
+ '("secret-tool" "reads an account's password from the desktop's keyring"
+   :install "install libsecret-tools (Debian, Ubuntu) or libsecret (Fedora)"))
 
 (define-package-setting *caldav-file* "agenda-caldav.org"
   "The Org file the calendars synced are kept in, a heading each, their

@@ -392,7 +392,7 @@ TO; how many as a second value."
   "The time zone identifier (TZID) ZONE is written with: its name, when it is a zone's name;
 NIL when it has none, and times are written in Coordinated Universal Time (UTC)."
   (let ((name (time-zone-name zone)))
-    (and name (zone-name-p name) name)))
+    (and name (time-zone-name-p name) name)))
 
 (defun local-ical-time (local zone)
   "The local time LOCAL on ZONE's clock as an ICAL-TIME: in ZONE by its name, else in Coordinated Universal Time (UTC)."
@@ -773,7 +773,7 @@ zone of that name."
      "VCALENDAR"
      (list (make-ical-property "VERSION" "2.0") (make-ical-property "PRODID" "-//Tuatara//caldav//EN"))
      (append (loop for tzid in tzids
-                   for zone = (zone-named tzid)
+                   for zone = (time-zone-named tzid)
                    for kept = (and agreed (calendar-vtimezone agreed tzid))
                    when (or kept zone) collect (or kept (zone-vtimezone zone)))
              components))))

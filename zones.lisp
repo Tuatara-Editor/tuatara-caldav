@@ -116,7 +116,7 @@ Europe/Stockholm); NIL for a name of no zone. Each zone is read once."
             (setf (gethash name read)
                   (or (let ((c (gethash name own))) (and c (vtimezone-zone c)))
                       (loop for parts on (uiop:split-string name :separator "/")
-                            for zone = (zone-named (format nil "~{~a~^/~}" parts))
+                            for zone = (time-zone-named (format nil "~{~a~^/~}" parts))
                             thereis zone)))))))))
 
 ;;; Written

@@ -244,8 +244,8 @@ before TO, local times all, the first MOST of them."
          (calendar (first (caldav::icalendar-read text)))
          (zones (caldav::calendar-zones calendar))
          (eastern (funcall zones "Eastern"))
-         (new-york (tuatara.dates:zone-named "America/New_York"))
-         (stockholm (tuatara.dates:zone-named "Europe/Stockholm"))
+         (new-york (tuatara.dates:time-zone-named "America/New_York"))
+         (stockholm (tuatara.dates:time-zone-named "Europe/Stockholm"))
          (from (* 86400 (tuatara.dates:day-number 2008 1 1)))
          (to (* 86400 (tuatara.dates:day-number 2040 1 1))))
     (true new-york)
@@ -262,7 +262,7 @@ before TO, local times all, the first MOST of them."
     (false (funcall zones "../../etc/passwd"))
     ;; written for a zone and read back: the same offsets
     (dolist (name '("Europe/Stockholm" "Pacific/Auckland" "America/New_York" "Asia/Kolkata" "Australia/Lord_Howe" "America/Santiago"))
-      (let* ((zone (tuatara.dates:zone-named name))
+      (let* ((zone (tuatara.dates:time-zone-named name))
              (component (caldav::zone-vtimezone zone))
              (read (caldav::vtimezone-zone
                     (first (caldav::icalendar-read (caldav::icalendar-write component))))))
@@ -289,7 +289,7 @@ before TO, local times all, the first MOST of them."
                            "BEGIN:VEVENT" "UID:later" "SUMMARY:Later" "DTSTART:20261201T090000Z" "END:VEVENT"
                            "END:VCALENDAR"))
          (calendar (first (caldav::icalendar-read text)))
-         (stockholm (tuatara.dates:zone-named "Europe/Stockholm"))
+         (stockholm (tuatara.dates:time-zone-named "Europe/Stockholm"))
          (from (tuatara.dates:zone-universal-time stockholm (* 86400 (tuatara.dates:day-number 2026 11 2))))
          (to (tuatara.dates:zone-universal-time stockholm (* 86400 (tuatara.dates:day-number 2026 11 16))))
          (found (caldav::icalendar-occurrences calendar from to :zone stockholm)))
@@ -332,7 +332,7 @@ before TO, local times all, the first MOST of them."
 
 (defun cs-zone ()
   "The clock the tests of entries are on."
-  (tuatara:zone-named "Europe/Stockholm"))
+  (tuatara:time-zone-named "Europe/Stockholm"))
 
 (defun cs-entries (calendar &rest arguments)
   "CALENDAR's entries as the package writes them, and as the agenda reads them back: two values."
