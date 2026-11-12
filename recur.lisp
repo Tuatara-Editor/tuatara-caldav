@@ -49,7 +49,9 @@ weekdays any ordinal allows."
                                  (floor (- (week-one-start (1+ year) (ical-recur-week-start recur)) first) 7)
                                  (ical-recur-by-week-no recur))))
            (or (null (ical-recur-by-year-day recur))
-               (matches-number (1+ (- day (day-number y 1 1))) (if (leap-year-p y) 366 365) (ical-recur-by-year-day recur)))
+               (matches-number (1+ (- day (day-number y 1 1)))
+                               (if (leap-year-p y) 366 365)
+                               (ical-recur-by-year-day recur)))
            (or (null month-days) (matches-number d (month-length y m) month-days))
            (or (null days)
                (let ((wd (weekday day))
@@ -132,7 +134,9 @@ START; at most *ICALENDAR-MOST-OCCURRENCES* are given and
                  (recur (if (eq by-month (ical-recur-by-month recur)) recur
                             (let ((copy (copy-ical-recur recur))) (setf (ical-recur-by-month copy) by-month) copy)))
                  (week-days (loop for (ordinal . wd) in by-day
-                                  when (or (null ordinal) (ical-recur-by-week-no recur) (not (member freq '(:monthly :yearly))))
+                                  when (or (null ordinal)
+                                           (ical-recur-by-week-no recur)
+                                           (not (member freq '(:monthly :yearly))))
                                     collect wd))
                  (hours (sort (copy-list (ical-recur-by-hour recur)) #'<))
                  (minutes (sort (copy-list (ical-recur-by-minute recur)) #'<))
@@ -175,12 +179,30 @@ START; at most *ICALENDAR-MOST-OCCURRENCES* are given and
                                   (day (floor at 86400)))
                              (multiple-value-bind (h rest) (floor (mod at 86400) 3600)
                                (multiple-value-bind (m s) (floor rest 60)
-                                 (values (and (day-allowed recur day (day-date day) by-day :month-days by-month-day :week-days week-days)
+                                 (values (and (day-allowed recur
+                                                           day
+                                                           (day-date day)
+                                                           by-day
+                                                           :month-days by-month-day
+                                                           :week-days week-days)
                                               (times-of day h (and (<= level 1) m) (and (= level 0) s)))
                                          at))))
-                           (multiple-value-bind (first days year) (recur-period-days freq (if (eq freq :weekly) week-start-day start-day) interval k recur year0 month0)
+                           (multiple-value-bind (first days year) (recur-period-days freq
+                                                                                     (if (eq freq :weekly)
+                                                                                         week-start-day
+                                                                                         start-day)
+                                                                                     interval
+                                                                                     k
+                                                                                     recur
+                                                                                     year0
+                                                                                     month0)
                              (values (loop for day from first below (+ first days)
-                                           when (day-allowed recur day year by-day :month-days by-month-day :week-days week-days)
+                                           when (day-allowed recur
+                                                             day
+                                                             year
+                                                             by-day
+                                                             :month-days by-month-day
+                                                             :week-days week-days)
                                              nconc (times-of day nil nil nil))
                                      (* 86400 first)))))
                      (first-period ()

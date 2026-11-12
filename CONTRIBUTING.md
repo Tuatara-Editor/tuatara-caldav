@@ -1,15 +1,15 @@
 # Contributing to caldav
 
-caldav is a package of the Tuatara project's own: its maintainers write it,
-keep it working, and decide what is added. It takes no pull requests; Tuatara's approved contributors work on the
-editor itself (see its
+caldav is a package of the Tuatara project's own: its maintainers write it, keep
+it working, and decide what is added. It takes no pull requests; Tuatara's
+approved contributors work on the editor itself (see its
 [CONTRIBUTING.md](https://github.com/Tuatara-Editor/tuatara/blob/main/CONTRIBUTING.md)).
 
 ## What is welcome
 
-- **A bug report**: open an issue, saying what happened, and how to make it happen again. Never attach a
-  file you are not free to share: a small made-up one that shows the same
-  is enough.
+- **A bug report**: open an issue, saying what happened, and how to make it
+  happen again. Never attach a file you are not free to share: a small made-up
+  one that shows the same is enough.
 - **An idea** for caldav, or for a new package: open an issue
   that says what you want to do and how you do it today. If the project
   takes the idea up, its maintainers write it; an idea is not a promise
@@ -49,17 +49,17 @@ A change needs:
 - **Tuatara's conventions**, in its
   [HACKING.org](https://github.com/Tuatara-Editor/tuatara/blob/main/HACKING.org):
   one way for each kind of thing, nothing slow on the editor's thread, no
-  colours outside the theme, nothing in a file ever run. A package uses only
-  the names Tuatara's API exports, and what it needs that Tuatara lacks is
-  added to Tuatara rather than written again in the package.
+  colours outside the theme, nothing in a file ever run. A package uses only the
+  names Tuatara's API exports, and what it needs that Tuatara lacks is added to
+  Tuatara rather than written again in the package.
 - **English.** All text, from docstrings to commit messages, is in English;
   any spelling is welcome, kept the same within a package.
 - **Nothing private.** No files, names, logos or text that belong to an
   employer, a customer or a case. Test files are small, made up for the test,
   and say nothing about real people.
 - **No paths outside the project.** Code, tests, documentation and examples
-  refer to no file or folder of anyone's own. They name only the project's
-  own files, a test's own temporary folder, what every system has (`/tmp`,
+  refer to no file or directory of anyone's own. They name only the project's
+  own files, a test's own temporary directory, what every system has (`/tmp`,
   `/etc`), or plain made-up places (`~/notes/`, `~/Documents/report.org`).
 
 The `Signed-off-by:` line is the author's statement, under the

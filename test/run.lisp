@@ -12,7 +12,7 @@
   "The package this repository holds: its entry is NAME.lisp at the top.")
 
 (defvar *package-root* (merge-pathnames "../" (make-pathname :name nil :type nil :defaults *load-truename*))
-  "The repository's top folder, where the package's files are.")
+  "The repository's top directory, where the package's files are.")
 
 (defvar *tuatara-source*
   (let ((given (sb-ext:posix-getenv "TUATARA_SOURCE")))
@@ -22,7 +22,7 @@
                                         (merge-pathnames "../../tuatara/" *package-root*)))
             (error "No Tuatara source tree beside this repository: set TUATARA_SOURCE"))))
   "The Tuatara source tree the tests run against: $TUATARA_SOURCE, else
-tuatara beside this repository or beside the folder it is in.")
+tuatara beside this repository or beside the directory it is in.")
 
 (load (merge-pathnames "tools/quicklisp.lisp" *tuatara-source*))
 (push *tuatara-source* asdf:*central-registry*)

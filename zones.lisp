@@ -17,7 +17,9 @@
   "The day of a ZONE-RULE that RECUR, a rule of a time zone (VTIMEZONE) observance, says:
 yearly in one month on the Nth or last weekday, or on the weekday of seven
 days in a row beginning on the 1st, 8th, 15th or 22nd; NIL for any other."
-  (let ((months (ical-recur-by-month recur)) (days (ical-recur-by-day recur)) (month-days (ical-recur-by-month-day recur)))
+  (let ((months (ical-recur-by-month recur))
+        (days (ical-recur-by-day recur))
+        (month-days (ical-recur-by-month-day recur)))
     (when (and (eq (ical-recur-freq recur) :yearly) (= 1 (ical-recur-interval recur))
                (null (ical-recur-count recur)) (null (ical-recur-until recur))
                (= 1 (length months)) (= 1 (length days))
@@ -28,7 +30,8 @@ days in a row beginning on the 1st, 8th, 15th or 22nd; NIL for any other."
                (list :month (first months) (if (= ordinal -1) 5 ordinal) wd))
               ((and (null ordinal) (= 7 (length month-days)))
                (let ((low (reduce #'min month-days)))
-                 (when (and (member low '(1 8 15 22)) (equal (sort (copy-list month-days) #'<) (loop for d from low below (+ low 7) collect d)))
+                 (when (and (member low '(1 8 15 22))
+                            (equal (sort (copy-list month-days) #'<) (loop for d from low below (+ low 7) collect d)))
                    (list :month (first months) (1+ (floor low 7)) wd)))))))))
 
 (defparameter *longest-zone-name* 200
@@ -58,12 +61,18 @@ says none. *MOST-OBSERVANCES* of it are read at most."
                                                collect (ical-local time))))
                 observances))))
     (when observances
-      (let* ((open (remove-if-not (lambda (o) (some (lambda (r) (not (or (ical-recur-count r) (ical-recur-until r)))) (getf o :rules)))
+      (let* ((open (remove-if-not (lambda (o)
+                                    (some (lambda (r) (not (or (ical-recur-count r) (ical-recur-until r))))
+                                          (getf o :rules)))
                                   observances))
              (daylight (find t open :key (lambda (o) (getf o :daylight))))
              (standard (find nil open :key (lambda (o) (getf o :daylight))))
              (day-of (lambda (o) (and o (= 1 (length (getf o :rules))) (rule-day-of-recur (first (getf o :rules))))))
-             (rule (cond ((and daylight standard (funcall day-of daylight) (funcall day-of standard) (= 2 (length open)))
+             (rule (cond ((and daylight
+                               standard
+                               (funcall day-of daylight)
+                               (funcall day-of standard)
+                               (= 2 (length open)))
                           (make-zone-rule (or (getf standard :name) "") (getf standard :to)
                                           (or (getf daylight :name) "") (getf daylight :to)
                                           (list (funcall day-of daylight) (mod (getf daylight :start) 86400))
@@ -138,10 +147,13 @@ it, by rule, or by dates FIRST-YEAR to LAST-YEAR where no rule can say it."
              (let* ((local (+ (* 86400 (rule-day day first-year)) time))
                     (recur (and (<= 0 time 86399) (rule-day-recur day))))
                (make-ical-component kind
-                                    (append (list (ical-time-property "DTSTART" (make-ical-time (floor local 86400) (mod local 86400)))
+                                    (append (list (ical-time-property "DTSTART"
+                                                                      (make-ical-time (floor local 86400)
+                                                                                      (mod local 86400)))
                                                   (make-ical-property "TZOFFSETFROM" (utc-offset-text from))
                                                   (make-ical-property "TZOFFSETTO" (utc-offset-text to)))
-                                            (when (plusp (length label)) (list (make-ical-property "TZNAME" (ical-text-escaped label))))
+                                            (when (plusp (length label))
+                                              (list (make-ical-property "TZNAME" (ical-text-escaped label))))
                                             (if recur
                                                 (list (make-ical-property "RRULE" (ical-recur-text recur)))
                                                 (list (make-ical-property "RDATE"
@@ -156,12 +168,23 @@ it, by rule, or by dates FIRST-YEAR to LAST-YEAR where no rule can say it."
               (let ((standard (zone-rule-standard-offset rule)) (daylight (zone-rule-daylight-offset rule)))
                 (destructuring-bind (to-daylight daylight-time) (zone-rule-to-daylight rule)
                   (destructuring-bind (to-standard standard-time) (zone-rule-to-standard rule)
-                    (list (observance "DAYLIGHT" to-daylight daylight-time standard daylight (zone-rule-daylight-name rule))
-                          (observance "STANDARD" to-standard standard-time daylight standard (zone-rule-standard-name rule)))))))
+                    (list (observance "DAYLIGHT"
+                                      to-daylight
+                                      daylight-time
+                                      standard
+                                      daylight
+                                      (zone-rule-daylight-name rule))
+                          (observance "STANDARD"
+                                      to-standard
+                                      standard-time
+                                      daylight
+                                      standard
+                                      (zone-rule-standard-name rule)))))))
              (t (let ((offset (if rule (zone-rule-standard-offset rule) (zone-offset zone (get-universal-time)))))
                   (list (make-ical-component "STANDARD"
                                              (append (list (make-ical-property "DTSTART" "19700101T000000")
                                                            (make-ical-property "TZOFFSETFROM" (utc-offset-text offset))
                                                            (make-ical-property "TZOFFSETTO" (utc-offset-text offset)))
                                                      (when (and rule (plusp (length (zone-rule-standard-name rule))))
-                                                       (list (make-ical-property "TZNAME" (ical-text-escaped (zone-rule-standard-name rule)))))))))))))))
+                                                       (list (make-ical-property "TZNAME"
+                                                                                 (ical-text-escaped (zone-rule-standard-name rule)))))))))))))))

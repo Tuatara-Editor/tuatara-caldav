@@ -1,4 +1,5 @@
-;;;; test.lisp --- The caldav package: calendar files read and written, their rules of recurrence, time zones and occurrences.
+;;;; test.lisp --- The caldav package: calendar files read and written, their rules of recurrence,
+;;;; time zones and occurrences.
 ;;;; Copyright (C) 2026 Michael A Jones.  GPL-3.0-or-later; see LICENSE.
 
 (in-package #:tuatara.tests)
@@ -24,7 +25,10 @@
 before TO, local times all, the first MOST of them."
   (let ((caldav::*icalendar-most-occurrences* most))
     (mapcar #'cs-ical-written
-            (caldav::recur-expand (caldav::read-ical-recur rule) (cs-ical-local start) (cs-ical-local from) (cs-ical-local to)))))
+            (caldav::recur-expand (caldav::read-ical-recur rule)
+                                  (cs-ical-local start)
+                                  (cs-ical-local from)
+                                  (cs-ical-local to)))))
 
 (define-test (caldav lines-and-components)
   (let* ((text (cs-ical-lines "BEGIN:VCALENDAR" "VERSION:2.0" "BEGIN:VEVENT" "UID:one@example.org"
@@ -55,12 +59,15 @@ before TO, local times all, the first MOST of them."
     (let* ((long (make-string 200 :initial-element #\ō))
            (written (caldav::icalendar-write
                      (caldav::make-ical-component "VEVENT" (list (caldav::make-ical-property "SUMMARY" long))))))
-      (true (every (lambda (line) (<= (length (sb-ext:string-to-octets (string-right-trim '(#\Return) line) :external-format :utf-8)) 75))
+      (true (every (lambda (line)
+                     (<= (length (sb-ext:string-to-octets (string-right-trim '(#\Return) line) :external-format :utf-8)) 75))
                    (uiop:split-string written :separator (string #\Newline))))
       (is string= long (caldav::ical-value-of (first (caldav::icalendar-read written)) "SUMMARY")))
     ;; LF alone ends lines too, and a byte order mark is passed over
     (is string= "x" (caldav::ical-value-of
-                     (first (caldav::icalendar-read (format nil "~cBEGIN:VTODO~%SUMMARY:x~%END:VTODO~%" (code-char #xFEFF))))
+                     (first (caldav::icalendar-read (format nil
+                                                            "~cBEGIN:VTODO~%SUMMARY:x~%END:VTODO~%"
+                                                            (code-char #xFEFF))))
                      "SUMMARY"))))
 
 (define-test (caldav not-calendar-files)
@@ -129,7 +136,11 @@ before TO, local times all, the first MOST of them."
 (define-test (caldav rules-of-recurrence)
   ;; RFC 5545, section 3.8.5.3, its examples and the times it lists, in local time
   (flet ((check (rule start expected &key (to "21000101T000000"))
-           (is equal expected (subseq (cs-recur-times rule start :to to) 0 (min (length expected) (length (cs-recur-times rule start :to to))))
+           (is equal
+               expected
+               (subseq (cs-recur-times rule start :to to)
+                       0
+                       (min (length expected) (length (cs-recur-times rule start :to to))))
                "~a from ~a" rule start)))
     (check "FREQ=DAILY;COUNT=10" "19970902T090000"
            '("19970902T090000" "19970903T090000" "19970904T090000" "19970905T090000" "19970906T090000"
@@ -138,7 +149,10 @@ before TO, local times all, the first MOST of them."
     (is = 113 (length (cs-recur-times "FREQ=DAILY;UNTIL=19971224T000000" "19970902T090000")))
     (check "FREQ=DAILY;INTERVAL=10;COUNT=5" "19970902T090000"
            '("19970902T090000" "19970912T090000" "19970922T090000" "19971002T090000" "19971012T090000"))
-    (is = 93 (length (cs-recur-times "FREQ=YEARLY;UNTIL=20000131T140000;BYMONTH=1;BYDAY=SU,MO,TU,WE,TH,FR,SA" "19980101T090000")))
+    (is =
+        93
+        (length (cs-recur-times "FREQ=YEARLY;UNTIL=20000131T140000;BYMONTH=1;BYDAY=SU,MO,TU,WE,TH,FR,SA"
+                                "19980101T090000")))
     (is = 93 (length (cs-recur-times "FREQ=DAILY;UNTIL=20000131T140000;BYMONTH=1" "19980101T090000")))
     (check "FREQ=WEEKLY;UNTIL=19971007T000000;WKST=SU;BYDAY=TU,TH" "19970902T090000"
            '("19970902T090000" "19970904T090000" "19970909T090000" "19970911T090000" "19970916T090000"
@@ -147,7 +161,9 @@ before TO, local times all, the first MOST of them."
     (check "FREQ=WEEKLY;INTERVAL=2;UNTIL=19971224T000000;WKST=SU;BYDAY=MO,WE,FR" "19970901T090000"
            '("19970901T090000" "19970903T090000" "19970905T090000" "19970915T090000" "19970917T090000"
              "19970919T090000" "19970929T090000" "19971001T090000" "19971003T090000" "19971013T090000"))
-    (is = 25 (length (cs-recur-times "FREQ=WEEKLY;INTERVAL=2;UNTIL=19971224T000000;WKST=SU;BYDAY=MO,WE,FR" "19970901T090000")))
+    (is =
+        25
+        (length (cs-recur-times "FREQ=WEEKLY;INTERVAL=2;UNTIL=19971224T000000;WKST=SU;BYDAY=MO,WE,FR" "19970901T090000")))
     (check "FREQ=MONTHLY;COUNT=10;BYDAY=1FR" "19970905T090000"
            '("19970905T090000" "19971003T090000" "19971107T090000" "19971205T090000" "19980102T090000"
              "19980206T090000" "19980306T090000" "19980403T090000" "19980501T090000" "19980605T090000"))
@@ -155,9 +171,19 @@ before TO, local times all, the first MOST of them."
            '("19970907T090000" "19970928T090000" "19971102T090000" "19971130T090000" "19980104T090000"
              "19980125T090000" "19980301T090000" "19980329T090000" "19980503T090000" "19980531T090000"))
     (check "FREQ=MONTHLY;COUNT=6;BYDAY=-2MO" "19970922T090000"
-           '("19970922T090000" "19971020T090000" "19971117T090000" "19971222T090000" "19980119T090000" "19980216T090000"))
+           '("19970922T090000"
+             "19971020T090000"
+             "19971117T090000"
+             "19971222T090000"
+             "19980119T090000"
+             "19980216T090000"))
     (check "FREQ=MONTHLY;BYMONTHDAY=-3" "19970928T090000"
-           '("19970928T090000" "19971029T090000" "19971128T090000" "19971229T090000" "19980129T090000" "19980226T090000"))
+           '("19970928T090000"
+             "19971029T090000"
+             "19971128T090000"
+             "19971229T090000"
+             "19980129T090000"
+             "19980226T090000"))
     (check "FREQ=MONTHLY;COUNT=10;BYMONTHDAY=1,-1" "19970930T090000"
            '("19970930T090000" "19971001T090000" "19971031T090000" "19971101T090000" "19971130T090000"
              "19971201T090000" "19971231T090000" "19980101T090000" "19980131T090000" "19980201T090000"))
@@ -177,13 +203,25 @@ before TO, local times all, the first MOST of them."
            '("19970101T090000" "19970410T090000" "19970719T090000" "20000101T090000" "20000409T090000"
              "20000718T090000" "20030101T090000" "20030410T090000" "20030719T090000" "20060101T090000"))
     (check "FREQ=YEARLY;BYDAY=20MO" "19970519T090000" '("19970519T090000" "19980518T090000" "19990517T090000"))
-    (check "FREQ=YEARLY;BYWEEKNO=20;BYDAY=MO" "19970512T090000" '("19970512T090000" "19980511T090000" "19990517T090000"))
+    (check "FREQ=YEARLY;BYWEEKNO=20;BYDAY=MO"
+           "19970512T090000"
+           '("19970512T090000" "19980511T090000" "19990517T090000"))
     (check "FREQ=YEARLY;BYMONTH=3;BYDAY=TH" "19970313T090000"
            '("19970313T090000" "19970320T090000" "19970327T090000" "19980305T090000" "19980312T090000"
-             "19980319T090000" "19980326T090000" "19990304T090000" "19990311T090000" "19990318T090000" "19990325T090000"))
+             "19980319T090000"
+             "19980326T090000"
+             "19990304T090000"
+             "19990311T090000"
+             "19990318T090000"
+             "19990325T090000"))
     ;; Friday the 13th: the first time, not one, is counted all the same
     (check "FREQ=MONTHLY;BYDAY=FR;BYMONTHDAY=13" "19970902T090000"
-           '("19970902T090000" "19980213T090000" "19980313T090000" "19981113T090000" "19990813T090000" "20001013T090000"))
+           '("19970902T090000"
+             "19980213T090000"
+             "19980313T090000"
+             "19981113T090000"
+             "19990813T090000"
+             "20001013T090000"))
     (check "FREQ=MONTHLY;BYDAY=SA;BYMONTHDAY=7,8,9,10,11,12,13" "19970913T090000"
            '("19970913T090000" "19971011T090000" "19971108T090000" "19971213T090000" "19980110T090000"
              "19980207T090000" "19980307T090000" "19980411T090000" "19980509T090000" "19980613T090000"))
@@ -195,11 +233,20 @@ before TO, local times all, the first MOST of them."
            '("19970929T090000" "19971030T090000" "19971127T090000" "19971230T090000" "19980129T090000"
              "19980226T090000" "19980330T090000"))
     (check "FREQ=MINUTELY;INTERVAL=15;COUNT=6" "19970902T090000"
-           '("19970902T090000" "19970902T091500" "19970902T093000" "19970902T094500" "19970902T100000" "19970902T101500"))
+           '("19970902T090000"
+             "19970902T091500"
+             "19970902T093000"
+             "19970902T094500"
+             "19970902T100000"
+             "19970902T101500"))
     (check "FREQ=MINUTELY;INTERVAL=90;COUNT=4" "19970902T090000"
            '("19970902T090000" "19970902T103000" "19970902T120000" "19970902T133000"))
-    (let ((daily (cs-recur-times "FREQ=DAILY;BYHOUR=9,10,11,12,13,14,15,16;BYMINUTE=0,20,40" "19970902T090000" :to "19970904T000000"))
-          (minutely (cs-recur-times "FREQ=MINUTELY;INTERVAL=20;BYHOUR=9,10,11,12,13,14,15,16" "19970902T090000" :to "19970904T000000")))
+    (let ((daily (cs-recur-times "FREQ=DAILY;BYHOUR=9,10,11,12,13,14,15,16;BYMINUTE=0,20,40"
+                                 "19970902T090000"
+                                 :to "19970904T000000"))
+          (minutely (cs-recur-times "FREQ=MINUTELY;INTERVAL=20;BYHOUR=9,10,11,12,13,14,15,16"
+                                    "19970902T090000"
+                                    :to "19970904T000000")))
       (is = 48 (length daily))
       (is equal daily minutely)
       (is string= "19970902T164000" (nth 23 daily))
@@ -233,7 +280,9 @@ before TO, local times all, the first MOST of them."
                            "TZOFFSETFROM:-0500" "TZOFFSETTO:-0400" "TZNAME:EDT" "END:DAYLIGHT"
                            "END:VTIMEZONE"
                            "BEGIN:VTIMEZONE" "TZID:Old rules"
-                           "BEGIN:STANDARD" "DTSTART:19701025T030000" "RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10;UNTIL=19961027T010000Z"
+                           "BEGIN:STANDARD"
+                              "DTSTART:19701025T030000"
+                              "RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10;UNTIL=19961027T010000Z"
                            "TZOFFSETFROM:+0200" "TZOFFSETTO:+0100" "END:STANDARD"
                            "BEGIN:DAYLIGHT" "DTSTART:19700329T020000" "RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=3"
                            "TZOFFSETFROM:+0100" "TZOFFSETTO:+0200" "END:DAYLIGHT"
@@ -261,7 +310,12 @@ before TO, local times all, the first MOST of them."
     (false (funcall zones "Nowhere/Particular"))
     (false (funcall zones "../../etc/passwd"))
     ;; written for a zone and read back: the same offsets
-    (dolist (name '("Europe/Stockholm" "Pacific/Auckland" "America/New_York" "Asia/Kolkata" "Australia/Lord_Howe" "America/Santiago"))
+    (dolist (name '("Europe/Stockholm"
+                    "Pacific/Auckland"
+                    "America/New_York"
+                    "Asia/Kolkata"
+                    "Australia/Lord_Howe"
+                    "America/Santiago"))
       (let* ((zone (tuatara.dates:time-zone-named name))
              (component (caldav::zone-vtimezone zone))
              (read (caldav::vtimezone-zone
@@ -273,17 +327,36 @@ before TO, local times all, the first MOST of them."
 
 (define-test (caldav occurrences)
   (let* ((text (cs-ical-lines "BEGIN:VCALENDAR"
-                           "BEGIN:VEVENT" "UID:weekly" "SUMMARY:Stand-up" "DTSTART;TZID=Europe/Stockholm:20261019T090000"
+                           "BEGIN:VEVENT"
+                              "UID:weekly"
+                              "SUMMARY:Stand-up"
+                              "DTSTART;TZID=Europe/Stockholm:20261019T090000"
                            "DTEND;TZID=Europe/Stockholm:20261019T091500" "RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=6"
-                           "EXDATE;TZID=Europe/Stockholm:20261102T090000" "RDATE;TZID=Europe/Stockholm:20261104T130000" "END:VEVENT"
-                           ;; one occurrence moved to the Tuesday, another moved into the days asked for from outside them
+                           "EXDATE;TZID=Europe/Stockholm:20261102T090000"
+                              "RDATE;TZID=Europe/Stockholm:20261104T130000"
+                              "END:VEVENT"
+                           ;; one occurrence moved to the Tuesday, another moved into the days asked for
+                          ;; from outside them
                            "BEGIN:VEVENT" "UID:weekly" "RECURRENCE-ID;TZID=Europe/Stockholm:20261109T090000"
                            "DTSTART;TZID=Europe/Stockholm:20261110T100000" "DTEND;TZID=Europe/Stockholm:20261110T103000"
                            "SUMMARY:Stand-up, moved" "END:VEVENT"
                            "BEGIN:VEVENT" "UID:weekly" "RECURRENCE-ID;TZID=Europe/Stockholm:20261123T090000"
-                           "DTSTART;TZID=Europe/Stockholm:20261106T090000" "DURATION:PT15M" "SUMMARY:Stand-up, early" "END:VEVENT"
-                           "BEGIN:VEVENT" "UID:away" "SUMMARY:Away" "DTSTART;VALUE=DATE:20261105" "DTEND;VALUE=DATE:20261108" "END:VEVENT"
-                           "BEGIN:VEVENT" "UID:call" "SUMMARY:Call" "DTSTART:20261103T150000Z" "DURATION:PT1H" "END:VEVENT"
+                           "DTSTART;TZID=Europe/Stockholm:20261106T090000"
+                              "DURATION:PT15M"
+                              "SUMMARY:Stand-up, early"
+                              "END:VEVENT"
+                           "BEGIN:VEVENT"
+                              "UID:away"
+                              "SUMMARY:Away"
+                              "DTSTART;VALUE=DATE:20261105"
+                              "DTEND;VALUE=DATE:20261108"
+                              "END:VEVENT"
+                           "BEGIN:VEVENT"
+                              "UID:call"
+                              "SUMMARY:Call"
+                              "DTSTART:20261103T150000Z"
+                              "DURATION:PT1H"
+                              "END:VEVENT"
                            "BEGIN:VEVENT" "UID:floating" "SUMMARY:Lunch" "DTSTART:20261103T120000" "END:VEVENT"
                            "BEGIN:VTODO" "UID:task" "SUMMARY:Report" "DUE;VALUE=DATE:20261106" "END:VTODO"
                            "BEGIN:VEVENT" "UID:later" "SUMMARY:Later" "DTSTART:20261201T090000Z" "END:VEVENT"
@@ -298,7 +371,8 @@ before TO, local times all, the first MOST of them."
                (if (caldav::ical-occurrence-whole-day o)
                    (list summary (cs-ical-written (* 86400 (caldav::ical-occurrence-start o)))
                          (cs-ical-written (* 86400 (caldav::ical-occurrence-end o))))
-                   (list summary (cs-ical-written (tuatara.dates:zone-local-time stockholm (caldav::ical-occurrence-start o)))
+                   (list summary
+                         (cs-ical-written (tuatara.dates:zone-local-time stockholm (caldav::ical-occurrence-start o)))
                          (cs-ical-written (tuatara.dates:zone-local-time stockholm (caldav::ical-occurrence-end o))))))))
       ;; the Monday of 16 November begins as the times asked for end: not in them
       (is equal '(("Lunch" "20261103T120000" "20261103T120000")
@@ -312,7 +386,9 @@ before TO, local times all, the first MOST of them."
     (is string= "20261109T090000"
         (caldav::ical-time-text
          (caldav::ical-occurrence-recurrence-id
-          (find "Stand-up, moved" found :key (lambda (o) (caldav::ical-value-of (caldav::ical-occurrence-component o) "SUMMARY"))
+          (find "Stand-up, moved"
+                found
+                :key (lambda (o) (caldav::ical-value-of (caldav::ical-occurrence-component o) "SUMMARY"))
                 :test #'string=))))
     ;; an event that does not recur has no recurrence id
     (false (caldav::ical-occurrence-recurrence-id
@@ -348,22 +424,34 @@ before TO, local times all, the first MOST of them."
   (apply #'caldav::entry-components entry :zone (cs-zone) :now (cs-now) arguments))
 
 (defparameter *cs-description*
-  (format nil "Agenda:~%* not a heading~%#+end_example~%- State \"CANCELLED\" for [2026-11-10 Tue 09:00]~%- [ ] not a task~%Bring <2026-11-04 Wed> and <%%(diary-float t 1 1)>~%CLOCK: [2026-11-03 Tue 09:00]")
+  (format nil
+          "Agenda:~%* not a heading~%#+end_example~%- State \"CANCELLED\" for [2026-11-10 Tue 09:00]~%- [ ] not a task~%Bring <2026-11-04 Wed> and <%%(diary-float t 1 1)>~%CLOCK: [2026-11-03 Tue 09:00]")
   "A description holding what Org would read as markup: a heading, a block's
 end, a note, a checkbox, timestamps and a clock.")
 
 (define-test (caldav events-as-entries)
   (let ((calendar (cs-calendar "BEGIN:VEVENT" "UID:meet@example.org" "SUMMARY:Harbour board"
                                "LOCATION:Wharf office\\, Nelson" "CATEGORIES:Work,Public Holiday"
-                               "DTSTART;TZID=Europe/Stockholm:20261103T090000" "DTEND;TZID=Europe/Stockholm:20261103T100000"
+                               "DTSTART;TZID=Europe/Stockholm:20261103T090000"
+                               "DTEND;TZID=Europe/Stockholm:20261103T100000"
                                "END:VEVENT"
                                ;; in UTC, shown on the system's clock
-                               "BEGIN:VEVENT" "UID:utc@example.org" "SUMMARY:Call" "DTSTART:20261103T130000Z" "END:VEVENT"
+                               "BEGIN:VEVENT"
+                               "UID:utc@example.org"
+                               "SUMMARY:Call"
+                               "DTSTART:20261103T130000Z"
+                               "END:VEVENT"
                                ;; whole days, the end the day after the last
                                "BEGIN:VEVENT" "UID:days@example.org" "SUMMARY:Christmas" "DTSTART;VALUE=DATE:20261224"
                                "DTEND;VALUE=DATE:20261226" "STATUS:CANCELLED" "END:VEVENT"
-                               "BEGIN:VTODO" "UID:task@example.org" "SUMMARY:Pay the rates" "DUE;VALUE=DATE:20261120" "END:VTODO")))
-    (is string= (format nil "** Harbour board :Work:Public_Holiday:~%:PROPERTIES:~%:UID: meet@example.org~%:LOCATION: Wharf office, Nelson~%:END:~%<2026-11-03 Tue 09:00-10:00>~%~
+                               "BEGIN:VTODO"
+                               "UID:task@example.org"
+                               "SUMMARY:Pay the rates"
+                               "DUE;VALUE=DATE:20261120"
+                               "END:VTODO")))
+    (is string=
+        (format nil
+                "** Harbour board :Work:Public_Holiday:~%:PROPERTIES:~%:UID: meet@example.org~%:LOCATION: Wharf office, Nelson~%:END:~%<2026-11-03 Tue 09:00-10:00>~%~
                              ** Call~%:PROPERTIES:~%:UID: utc@example.org~%:END:~%<2026-11-03 Tue 14:00>~%~
                              ** Christmas :cancelled:~%:PROPERTIES:~%:UID: days@example.org~%:END:~%<2026-12-24 Thu>--<2026-12-25 Fri>~%~
                              ** TODO Pay the rates~%DEADLINE: <2026-11-20 Fri>~%:PROPERTIES:~%:UID: task@example.org~%:END:~%")
@@ -376,7 +464,10 @@ end, a note, a checkbox, timestamps and a clock.")
                    "DTSTART;TZID=Europe/Stockholm:20261103T090000" "DTEND;TZID=Europe/Stockholm:20261103T093000"
                    "RRULE:FREQ=WEEKLY" "EXDATE;TZID=Europe/Stockholm:20261110T090000" "END:VEVENT"
                    "BEGIN:VEVENT" "UID:weekly@example.org" "RECURRENCE-ID;TZID=Europe/Stockholm:20261117T090000"
-                   "SUMMARY:Stand-up" "DTSTART;TZID=Europe/Stockholm:20261118T140000" "DTEND;TZID=Europe/Stockholm:20261118T143000" "END:VEVENT"
+                   "SUMMARY:Stand-up"
+                   "DTSTART;TZID=Europe/Stockholm:20261118T140000"
+                   "DTEND;TZID=Europe/Stockholm:20261118T143000"
+                   "END:VEVENT"
                    ;; the second Tuesday three times: a date by rule from its first day to its last
                    "BEGIN:VEVENT" "UID:board@example.org" "SUMMARY:Board"
                    "DTSTART;TZID=Europe/Stockholm:20261110T180000" "DTEND;TZID=Europe/Stockholm:20261110T200000"
@@ -391,7 +482,9 @@ end, a note, a checkbox, timestamps and a clock.")
                    "DTSTART;VALUE=DATE:20261104" "RRULE:FREQ=WEEKLY;INTERVAL=2;COUNT=3" "END:VEVENT"
                    ;; every other week on two days: a cycle for each
                    "BEGIN:VEVENT" "UID:choir@example.org" "SUMMARY:Choir"
-                   "DTSTART;TZID=Europe/Stockholm:20261103T190000" "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=TU,TH" "END:VEVENT"
+                   "DTSTART;TZID=Europe/Stockholm:20261103T190000"
+                   "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=TU,TH"
+                   "END:VEVENT"
                    ;; the last weekday of the month: no Org words for it, so its times written out
                    "BEGIN:VEVENT" "UID:pay@example.org" "SUMMARY:Payday"
                    "DTSTART;VALUE=DATE:20261030" "RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1" "END:VEVENT")))
@@ -417,9 +510,13 @@ end, a note, a checkbox, timestamps and a clock.")
       ;; as the agenda reads them: the times cancelled and moved, and each rule the days the calendar says
       (let ((weekly (cs-titled "Stand-up" entries)))
         (multiple-value-bind (cancelled moved)
-            (tuatara:org-occurrence-notes (tuatara:agenda-entry-get weekly :text) (tuatara:agenda-entry-get weekly :position) (tuatara:agenda-entry-get weekly :end))
+            (tuatara:org-occurrence-notes (tuatara:agenda-entry-get weekly :text)
+                                          (tuatara:agenda-entry-get weekly :position)
+                                          (tuatara:agenda-entry-get weekly :end))
           (is equal (list (cons (tuatara:day-number 2026 11 10) 900)) cancelled)
-          (is equal (list (cons (cons (tuatara:day-number 2026 11 17) 900) (cons (tuatara:day-number 2026 11 18) 1400))) moved)))
+          (is equal
+              (list (cons (cons (tuatara:day-number 2026 11 17) 900) (cons (tuatara:day-number 2026 11 18) 1400)))
+              moved)))
       (flet ((days (title from count)
                (let ((rule (tuatara:org-read-rule (first (tuatara:agenda-entry-get (cs-titled title entries) :stamps)))))
                  (loop repeat count
@@ -437,7 +534,10 @@ end, a note, a checkbox, timestamps and a clock.")
                                "LOCATION:Room <2026-11-06 Fri>"
                                "DTSTART;VALUE=DATE:20261103" "END:VEVENT")))
     (multiple-value-bind (text entries) (cs-entries calendar)
-      (let ((entry (find "odd@example.org" entries :key (lambda (e) (cdr (assoc "UID" (tuatara:agenda-entry-get e :properties) :test #'string=))) :test #'equal)))
+      (let ((entry (find "odd@example.org"
+                         entries
+                         :key (lambda (e) (cdr (assoc "UID" (tuatara:agenda-entry-get e :properties) :test #'string=)))
+                         :test #'equal)))
         (true entry "the heading is one: ~a" text)
         ;; nothing in it the agenda reads but its own day: no keyword, tags, other times, notes, clocks or tasks
         (is = 2 (length entries))
@@ -445,7 +545,11 @@ end, a note, a checkbox, timestamps and a clock.")
         (is equal '() (tuatara:agenda-entry-get entry :local-tags))
         (is equal '("<2026-11-03 Tue>") (tuatara:agenda-entry-get entry :stamps))
         (false (tuatara:agenda-entry-get entry :logs))
-        (is equal '(nil nil) (multiple-value-list (tuatara:org-occurrence-notes (tuatara:agenda-entry-get entry :text) (tuatara:agenda-entry-get entry :position) (tuatara:agenda-entry-get entry :end))))
+        (is equal
+            '(nil nil)
+            (multiple-value-list (tuatara:org-occurrence-notes (tuatara:agenda-entry-get entry :text)
+                                                               (tuatara:agenda-entry-get entry :position)
+                                                               (tuatara:agenda-entry-get entry :end))))
         (false (search "[[" (tuatara:agenda-entry-get entry :title)))
         ;; and each read back as the calendar said it
         (let ((event (first (cs-sent entry))))
@@ -465,7 +569,8 @@ end, a note, a checkbox, timestamps and a clock.")
 
 (define-test (caldav entries-as-events)
   ;; written in Org: times on the system's clock, a repeater, tags, a place and a description
-  (let* ((entry (cs-entry (format nil "* Dentist :health:~%:PROPERTIES:~%:LOCATION: Nelson~%:END:~%<2026-11-05 Thu 14:00-15:00 +2w>~%~a"
+  (let* ((entry (cs-entry (format nil
+                                  "* Dentist :health:~%:PROPERTIES:~%:LOCATION: Nelson~%:END:~%<2026-11-05 Thu 14:00-15:00 +2w>~%~a"
                                   (caldav::description-block "Bring the card"))))
          (events (cs-sent entry))
          (event (first events)))
@@ -481,20 +586,27 @@ end, a note, a checkbox, timestamps and a clock.")
     (is string= "DESCRIPTION:Bring the card" (cs-property-line event "DESCRIPTION"))
     (is string= "DTSTAMP:20261028T120000Z" (cs-property-line event "DTSTAMP")))
   ;; a form's fields left blank, as the capture template in the README leaves them: none sent
-  (let ((event (first (cs-sent (cs-entry (format nil "* Swim~%:PROPERTIES:~%:LOCATION:~%:END:~%<2026-11-05 Thu 07:00-08:00>~%#+name: description~%#+begin_example~%~%#+end_example~%"))))))
+  (let ((event (first (cs-sent (cs-entry (format nil
+                                                 "* Swim~%:PROPERTIES:~%:LOCATION:~%:END:~%<2026-11-05 Thu 07:00-08:00>~%#+name: description~%#+begin_example~%~%#+end_example~%"))))))
     (is string= "SUMMARY:Swim" (cs-property-line event "SUMMARY"))
     (false (cs-property-line event "LOCATION"))
     (false (cs-property-line event "DESCRIPTION")))
   ;; a task with a deadline alone, done
-  (let ((task (first (cs-sent (cs-entry (format nil "* DONE Pay the rates~%CLOSED: [2026-11-19 Thu 10:00] DEADLINE: <2026-11-20 Fri>~%:PROPERTIES:~%:UID: task@example.org~%:END:~%"))))))
+  (let ((task (first (cs-sent (cs-entry (format nil
+                                                "* DONE Pay the rates~%CLOSED: [2026-11-19 Thu 10:00] DEADLINE: <2026-11-20 Fri>~%:PROPERTIES:~%:UID: task@example.org~%:END:~%"))))))
     (is string= "VTODO" (caldav::ical-component-name task))
     (is string= "DUE;VALUE=DATE:20261120" (cs-property-line task "DUE"))
     (is string= "STATUS:COMPLETED" (cs-property-line task "STATUS"))
     (is string= "COMPLETED:20261119T090000Z" (cs-property-line task "COMPLETED")))
   ;; a time cancelled and one moved: left out, and a change of that one time
-  (let* ((events (cs-sent (cs-entry (format nil "* Stand-up :cancelled:~%:PROPERTIES:~%:UID: weekly@example.org~%:END:~%:LOGBOOK:~%~a~%~a~%:END:~%<2026-11-03 Tue 09:00-09:30 +1w>~%"
-                                            (tuatara:org-occurrence-note :cancelled (cons (tuatara:day-number 2026 11 10) 900) nil (cs-now))
-                                            (tuatara:org-occurrence-note :moved (cons (tuatara:day-number 2026 11 17) 900) (cons (tuatara:day-number 2026 11 18) 1400) (cs-now))))))
+  (let* ((events (cs-sent (cs-entry (format nil
+                                            "* Stand-up :cancelled:~%:PROPERTIES:~%:UID: weekly@example.org~%:END:~%:LOGBOOK:~%~a~%~a~%:END:~%<2026-11-03 Tue 09:00-09:30 +1w>~%"
+                                            (tuatara:org-occurrence-note :cancelled (cons (tuatara:day-number 2026 11 10) 900)
+                                                                         nil
+                                                                         (cs-now))
+                                            (tuatara:org-occurrence-note :moved (cons (tuatara:day-number 2026 11 17) 900)
+                                                                         (cons (tuatara:day-number 2026 11 18) 1400)
+                                                                         (cs-now))))))
          (master (first events)) (change (second events)))
     (is = 2 (length events))
     (is string= "STATUS:CANCELLED" (cs-property-line master "STATUS"))
@@ -511,15 +623,20 @@ end, a note, a checkbox, timestamps and a clock.")
   (flet ((rule-of (stamp)
            (let ((event (first (cs-sent (cs-entry (format nil "* Rule~%~a~%" stamp))))))
              (list (cs-property-line event "DTSTART") (cs-property-line event "RRULE")))))
-    (is equal '("DTSTART;TZID=Europe/Stockholm:20261103T100000" "RRULE:FREQ=MONTHLY;INTERVAL=2;UNTIL=20261231T090000Z;BYDAY=1TU")
+    (is equal
+        '("DTSTART;TZID=Europe/Stockholm:20261103T100000"
+          "RRULE:FREQ=MONTHLY;INTERVAL=2;UNTIL=20261231T090000Z;BYDAY=1TU")
         (rule-of "<%%(and (diary-block 11 3 2026 12 31 2026) (diary-float '(1 3 5 7 9 11) 2 1)) 10:00>"))
     (is equal '("DTSTART;TZID=Europe/Stockholm:20261103T090000" "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=TU,TH")
         (rule-of "<%%(or (diary-cyclic 14 11 3 2026) (diary-cyclic 14 11 5 2026)) 09:00>"))
     (is equal '("DTSTART;VALUE=DATE:20261102" "RRULE:FREQ=DAILY;INTERVAL=2;BYDAY=MO,TU,WE,TH,FR")
         (rule-of "<%%(and (diary-block 11 2 2026 1 1 2126) (diary-cyclic 2 11 2 2026) (memq (calendar-day-of-week date) '(1 2 3 4 5)))>")))
   ;; one with a range of days and a time besides: an event each, the second's UID with its day
-  (let ((events (cs-sent (cs-entry (format nil "* Trip~%:PROPERTIES:~%:UID: trip@example.org~%:END:~%<2026-12-01 Tue>--<2026-12-03 Thu>~%<2026-12-10 Thu 08:00>~%")))))
-    (is equal '("UID:trip@example.org" "UID:trip@example.org-20261210") (mapcar (lambda (e) (cs-property-line e "UID")) events))
+  (let ((events (cs-sent (cs-entry (format nil
+                                           "* Trip~%:PROPERTIES:~%:UID: trip@example.org~%:END:~%<2026-12-01 Tue>--<2026-12-03 Thu>~%<2026-12-10 Thu 08:00>~%")))))
+    (is equal
+        '("UID:trip@example.org" "UID:trip@example.org-20261210")
+        (mapcar (lambda (e) (cs-property-line e "UID")) events))
     (is equal '("DTSTART;VALUE=DATE:20261201" "DTEND;VALUE=DATE:20261204")
         (list (cs-property-line (first events) "DTSTART") (cs-property-line (first events) "DTEND")))))
 
@@ -535,7 +652,10 @@ end, a note, a checkbox, timestamps and a clock.")
          (weekly (first (cs-sent (cs-titled "Stand-up" entries) :agreed calendar)))
          (pay (first (cs-sent (cs-titled "Payday" entries) :agreed calendar))))
     (is equal '("DTSTART;TZID=Europe/Stockholm:20261103T090000" "DURATION:PT30M" "RRULE:FREQ=WEEKLY;BYDAY=TU"
-                "EXDATE;TZID=Europe/Stockholm:20261110T090000" "SEQUENCE:4" "X-CLIENT-THING:kept" "CATEGORIES:Public Holiday")
+                "EXDATE;TZID=Europe/Stockholm:20261110T090000"
+                "SEQUENCE:4"
+                "X-CLIENT-THING:kept"
+                "CATEGORIES:Public Holiday")
         (mapcar (lambda (name) (cs-property-line weekly name))
                 '("DTSTART" "DURATION" "RRULE" "EXDATE" "SEQUENCE" "X-CLIENT-THING" "CATEGORIES")))
     (false (cs-property-line weekly "DTEND"))
@@ -544,8 +664,11 @@ end, a note, a checkbox, timestamps and a clock.")
         (list (cs-property-line pay "DTSTART") (cs-property-line pay "RRULE"))))
   ;; its time changed in Org: the entry's time, and the next SEQUENCE
   (let* ((calendar (cs-calendar "BEGIN:VEVENT" "UID:one@example.org" "SUMMARY:Lunch" "SEQUENCE:2"
-                                "DTSTART;TZID=Europe/Stockholm:20261103T120000" "DTEND;TZID=Europe/Stockholm:20261103T130000" "END:VEVENT"))
-         (event (first (cs-sent (cs-entry (format nil "* Lunch~%:PROPERTIES:~%:UID: one@example.org~%:END:~%<2026-11-04 Wed 12:30-13:30>~%"))
+                                "DTSTART;TZID=Europe/Stockholm:20261103T120000"
+                                "DTEND;TZID=Europe/Stockholm:20261103T130000"
+                                "END:VEVENT"))
+         (event (first (cs-sent (cs-entry (format nil
+                                                  "* Lunch~%:PROPERTIES:~%:UID: one@example.org~%:END:~%<2026-11-04 Wed 12:30-13:30>~%"))
                                 :agreed calendar))))
     (is string= "DTSTART;TZID=Europe/Stockholm:20261104T123000" (cs-property-line event "DTSTART"))
     (is string= "SEQUENCE:3" (cs-property-line event "SEQUENCE")))
@@ -583,11 +706,16 @@ every event and an empty token, as etesync-dav answers."
 
 (defun cs-multistatus (&rest responses)
   "A multistatus answer of RESPONSES, each the XML inside a response."
-  (format nil "<?xml version=\"1.0\"?><d:multistatus xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\">~{<d:response>~a</d:response>~}</d:multistatus>" responses))
+  (format nil
+          "<?xml version=\"1.0\"?><d:multistatus xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\">~{<d:response>~a</d:response>~}</d:multistatus>"
+          responses))
 
 (defun cs-ok (href props)
   "A response for HREF of PROPS, found."
-  (format nil "<d:href>~a</d:href><d:propstat><d:prop>~a</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>" href props))
+  (format nil
+          "<d:href>~a</d:href><d:propstat><d:prop>~a</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>"
+          href
+          props))
 
 (defun cs-transport (server)
   "A transport (CALENDAR-SYNC::*TRANSPORT*) answering as SERVER does, for the
@@ -600,42 +728,65 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
         ((not (and (equal user "kiwi") (equal password "p\"w"))) (values 401 '() ""))
         ((string= method "PROPFIND")
          (values 207 '()
-                 (cond ((search "current-user-principal" body) (cs-multistatus (cs-ok path "<d:current-user-principal><d:href>/kiwi/</d:href></d:current-user-principal>")))
-                       ((search "calendar-home-set" body) (cs-multistatus (cs-ok path "<c:calendar-home-set><d:href>/kiwi/</d:href></c:calendar-home-set>")))
+                 (cond ((search "current-user-principal" body)
+                        (cs-multistatus (cs-ok path
+                                               "<d:current-user-principal><d:href>/kiwi/</d:href></d:current-user-principal>")))
+                       ((search "calendar-home-set" body)
+                        (cs-multistatus (cs-ok path
+                                               "<c:calendar-home-set><d:href>/kiwi/</d:href></c:calendar-home-set>")))
                        ((search "resourcetype/><d:displayname" body)
                         (cs-multistatus (cs-ok "/kiwi/" "<d:resourcetype><d:collection/></d:resourcetype>")
-                                        (cs-ok "/kiwi/home/" "<d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>Home &amp; garden</d:displayname><c:supported-calendar-component-set><c:comp name=\"VEVENT\"/></c:supported-calendar-component-set>")))
-                       (t (apply #'cs-multistatus (loop for p being the hash-keys of (cs-server-events server) using (hash-value v)
-                                                        collect (cs-ok p (format nil "<d:getetag>~a</d:getetag>" (car v)))))))))
+                                        (cs-ok "/kiwi/home/"
+                                               "<d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>Home &amp; garden</d:displayname><c:supported-calendar-component-set><c:comp name=\"VEVENT\"/></c:supported-calendar-component-set>")))
+                       (t (apply #'cs-multistatus
+                                 (loop for p being the hash-keys of (cs-server-events server) using (hash-value v)
+                                                        collect (cs-ok p
+                                                                       (format nil "<d:getetag>~a</d:getetag>" (car v)))))))))
         ((and (string= method "REPORT") (search "sync-collection" body))
-         (let* ((since (let ((m (nth-value 1 (cl-ppcre:scan-to-strings "token/(\\d+)<" body)))) (if m (parse-integer (aref m 0)) 0)))
+         (let* ((since (let ((m (nth-value 1 (cl-ppcre:scan-to-strings "token/(\\d+)<" body))))
+                         (if m (parse-integer (aref m 0)) 0)))
                 (paths (if (cs-server-empty-tokens server)
                            (loop for p being the hash-keys of (cs-server-events server) collect p)
-                           (remove-duplicates (loop for (n p) in (cs-server-changes server) when (> n since) collect p) :test #'string=))))
+                           (remove-duplicates (loop for (n p) in (cs-server-changes server) when (> n since) collect p)
+                                              :test #'string=))))
            (values 207 '()
-                   (format nil "<?xml version=\"1.0\"?><d:multistatus xmlns:d=\"DAV:\">~{<d:response>~a</d:response>~}<d:sync-token>~@[token/~d~]</d:sync-token></d:multistatus>"
+                   (format nil
+                           "<?xml version=\"1.0\"?><d:multistatus xmlns:d=\"DAV:\">~{<d:response>~a</d:response>~}<d:sync-token>~@[token/~d~]</d:sync-token></d:multistatus>"
                            (loop for p in paths
                                  for v = (gethash p (cs-server-events server))
                                  collect (if v
                                              (cs-ok p (format nil "<d:getetag>~a</d:getetag>" (car v)))
-                                             (format nil "<d:href>~a</d:href><d:status>HTTP/1.1 404 Not Found</d:status>" p)))
+                                             (format nil
+                                                     "<d:href>~a</d:href><d:status>HTTP/1.1 404 Not Found</d:status>"
+                                                     p)))
                            (and (not (cs-server-empty-tokens server)) (cs-server-token server))))))
         ((string= method "REPORT")
          (values 207 '()
                  (apply #'cs-multistatus
-                        (loop for p in (let ((paths '())) (cl-ppcre:do-register-groups (p) ("<d:href>([^<]*)</d:href>" body) (push p paths)) (nreverse paths))
+                        (loop for p in (let ((paths '()))
+                                         (cl-ppcre:do-register-groups (p)
+                                                                      ("<d:href>([^<]*)</d:href>" body)
+                                                                      (push p paths))
+                                         (nreverse paths))
                               for v = (gethash p (cs-server-events server))
-                              when v collect (cs-ok p (format nil "<d:getetag>~a</d:getetag><c:calendar-data>~a</c:calendar-data>" (car v) (tuatara:xml-escape (cdr v))))))))
+                              when v
+                                collect (cs-ok p
+                                               (format nil
+                                                       "<d:getetag>~a</d:getetag><c:calendar-data>~a</c:calendar-data>"
+                                                       (car v)
+                                                       (tuatara:xml-escape (cdr v))))))))
         ((string= method "PUT")
          (let ((was (gethash path (cs-server-events server))))
            (cond ((cs-server-refuse-puts server) (values 403 '() ""))
-                 ((and (funcall header "If-Match") (not (and was (string= (car was) (funcall header "If-Match"))))) (values 412 '() ""))
+                 ((and (funcall header "If-Match") (not (and was (string= (car was) (funcall header "If-Match")))))
+                  (values 412 '() ""))
                  ((and (funcall header "If-None-Match") was) (values 412 '() ""))
                  (t (values 201 (list (cons "etag" (cs-server-put server path body))) "")))))
         ((string= method "DELETE")
          (let ((was (gethash path (cs-server-events server))))
            (cond ((null was) (values 404 '() ""))
-                 ((and (funcall header "If-Match") (string/= (car was) (funcall header "If-Match"))) (values 412 '() ""))
+                 ((and (funcall header "If-Match") (string/= (car was) (funcall header "If-Match")))
+                  (values 412 '() ""))
                  (t (cs-server-delete server path) (values 204 '() "")))))
         ((string= method "GET")
          (let ((v (gethash path (cs-server-events server)))) (if v (values 200 '() (cdr v)) (values 404 '() ""))))
@@ -643,10 +794,11 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
 
 (defun cs-event-text (&rest lines)
   "A calendar file of one event of LINES."
-  (apply #'cs-ical-lines (append '("BEGIN:VCALENDAR" "VERSION:2.0" "BEGIN:VEVENT") lines '("END:VEVENT" "END:VCALENDAR"))))
+  (apply #'cs-ical-lines
+         (append '("BEGIN:VCALENDAR" "VERSION:2.0" "BEGIN:VEVENT") lines '("END:VEVENT" "END:VCALENDAR"))))
 
 (defmacro with-cs-state (() &body body)
-  "Run BODY with the state and cache directories in a folder of its own, deleted after."
+  "Run BODY with the state and cache directories in a directory of its own, deleted after."
   `(let ((home (merge-pathnames (format nil "tuatara-cs-~d/" (sb-posix:getpid)) (uiop:temporary-directory)))
          (state (uiop:getenv "XDG_STATE_HOME")) (cache (uiop:getenv "XDG_CACHE_HOME")))
      (unwind-protect
@@ -666,7 +818,9 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
                        collect (caldav::sync-calendar account c (caldav::section-of sections (getf c :url))
                                                              :zone (cs-zone) :now (cs-now)))))
     (dolist (p passes)
-      (caldav::write-calendar-state (caldav::calendar-pass-folder p) (caldav::calendar-pass-token p) (caldav::calendar-pass-events p)))
+      (caldav::write-calendar-state (caldav::calendar-pass-directory p)
+                                    (caldav::calendar-pass-token p)
+                                    (caldav::calendar-pass-events p)))
     (caldav::merged-text text passes)))
 
 (defun cs-puts (server)
@@ -689,14 +843,19 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
   (is string= "\"kiwi:p\\\"w\\\\\"" (caldav::curl-quoted "kiwi:p\"w\\"))
   ;; the headers of the last answer, after a redirect's
   (is equal '(("etag" . "\"7\"") ("content-type" . "text/calendar"))
-      (caldav::curl-headers (format nil "HTTP/1.1 301 Moved~c~%Location: /x~c~%~c~%HTTP/1.1 200 OK~c~%ETag: \"7\"~c~%Content-Type: text/calendar~c~%~c~%"
+      (caldav::curl-headers (format nil
+                                    "HTTP/1.1 301 Moved~c~%Location: /x~c~%~c~%HTTP/1.1 200 OK~c~%ETag: \"7\"~c~%Content-Type: text/calendar~c~%~c~%"
                                            #\Return #\Return #\Return #\Return #\Return #\Return #\Return)))
   ;; a redirect to an address that may not be reached is not followed
   (let ((caldav::*transport* (lambda (method url &rest r) (declare (ignore method r))
-                                      (if (search "example.org" url) (values 301 '(("location" . "http://elsewhere.example/")) "") (values 200 '() "")))))
+                                      (if (search "example.org" url)
+                                          (values 301 '(("location" . "http://elsewhere.example/")) "")
+                                          (values 200 '() "")))))
     (fail (caldav::request '() "GET" "https://cal.example.org/") 'caldav::caldav-error)
     ;; nor is an account's password sent to another host, whatever an answer names
-    (fail (caldav::request '(:name "Home" :url "https://cal.example.org/" :user "kiwi" :password "x") "GET" "https://other.example.net/kiwi/")
+    (fail (caldav::request '(:name "Home" :url "https://cal.example.org/" :user "kiwi" :password "x")
+                           "GET"
+                           "https://other.example.net/kiwi/")
           'caldav::caldav-error)))
 
 (define-test (caldav calendars-synced-both-ways)
@@ -704,8 +863,11 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
     (let ((server (make-cs-server)))
       (cs-server-put server "/kiwi/home/dentist.ics"
                      (cs-event-text "UID:dentist@example.org" "SUMMARY:Dentist" "LOCATION:Nelson" "X-THEIRS:kept"
-                                    "DTSTART;TZID=Europe/Stockholm:20261105T140000" "DTEND;TZID=Europe/Stockholm:20261105T150000"))
-      (cs-server-put server "/kiwi/home/board.ics" (cs-event-text "UID:board@example.org" "SUMMARY:Board" "DTSTART;VALUE=DATE:20261120"))
+                                    "DTSTART;TZID=Europe/Stockholm:20261105T140000"
+                                    "DTEND;TZID=Europe/Stockholm:20261105T150000"))
+      (cs-server-put server
+                     "/kiwi/home/board.ics"
+                     (cs-event-text "UID:board@example.org" "SUMMARY:Board" "DTSTART;VALUE=DATE:20261120"))
       ;; a rule Org cannot say, all of its times before the days written out: an entry with none
       (cs-server-put server "/kiwi/home/ended.ics"
                      (cs-event-text "UID:ended@example.org" "SUMMARY:Upgrade" "DTSTART;VALUE=DATE:20250601"
@@ -720,21 +882,25 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
         (is = 0 (cs-puts server))
         ;; changed here: the title, a line of your own, a new entry, and a heading of no time, which is not sent
         (let* ((edited (concatenate 'string (cl-ppcre:regex-replace "\\*\\* Dentist" text "** Dentist, the check-up")
-                                    (format nil "Bring the card.~%** Lunch with Aroha~%<2026-11-06 Fri 12:00-13:00>~%** Some day~%")))
+                                    (format nil
+                                            "Bring the card.~%** Lunch with Aroha~%<2026-11-06 Fri 12:00-13:00>~%** Some day~%")))
                (synced (cs-sync server edited))
                (dentist (cdr (gethash "/kiwi/home/dentist.ics" (cs-server-events server)))))
           (is = 2 (cs-puts server))
           (true (search "SUMMARY:Dentist\\, the check-up" dentist))
           (true (search "X-THEIRS:kept" dentist) "what the calendar keeps of its own is sent back")
           ;; the new entry is an event of the server's, its UID written into it
-          (let ((uid (nth-value 1 (cl-ppcre:scan-to-strings "\\*\\* Lunch with Aroha\\n:PROPERTIES:\\n:UID: (\\S+@tuatara)\\n" synced))))
+          (let ((uid (nth-value 1
+                                (cl-ppcre:scan-to-strings "\\*\\* Lunch with Aroha\\n:PROPERTIES:\\n:UID: (\\S+@tuatara)\\n" synced))))
             (true uid "the new entry has its UID: ~a" synced)
-            (true (find-if (lambda (v) (search (aref uid 0) (cdr v))) (loop for v being the hash-values of (cs-server-events server) collect v))))
+            (true (find-if (lambda (v) (search (aref uid 0) (cdr v)))
+                           (loop for v being the hash-values of (cs-server-events server) collect v))))
           (true (search "Bring the card." synced))
           ;; changed there: a time; deleted there: the board; changed on both sides: the dentist
           (cs-server-put server "/kiwi/home/dentist.ics"
                          (cs-event-text "UID:dentist@example.org" "SUMMARY:Dentist" "LOCATION:Nelson"
-                                        "DTSTART;TZID=Europe/Stockholm:20261105T160000" "DTEND;TZID=Europe/Stockholm:20261105T170000"))
+                                        "DTSTART;TZID=Europe/Stockholm:20261105T160000"
+                                        "DTEND;TZID=Europe/Stockholm:20261105T170000"))
           (cs-server-delete server "/kiwi/home/board.ics")
           (let ((both (cs-sync server (cl-ppcre:regex-replace "the check-up" synced "the check-up, early"))))
             (is = 0 (cs-puts server) "a change made on both sides is not sent")
@@ -753,9 +919,15 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
   (with-cs-state ()
     (let ((server (make-cs-server)))
       (setf (cs-server-empty-tokens server) t)
-      (cs-server-put server "/kiwi/home/walk.ics" (cs-event-text "UID:walk@example.org" "SUMMARY:Walk" "DTSTART;VALUE=DATE:20261121"))
-      (cs-server-put server "/kiwi/home/swim.ics" (cs-event-text "UID:swim@example.org" "SUMMARY:Swim" "DTSTART;VALUE=DATE:20261122"))
-      (cs-server-put server "/kiwi/home/run.ics" (cs-event-text "UID:run@example.org" "SUMMARY:Run" "DTSTART;VALUE=DATE:20261123"))
+      (cs-server-put server
+                     "/kiwi/home/walk.ics"
+                     (cs-event-text "UID:walk@example.org" "SUMMARY:Walk" "DTSTART;VALUE=DATE:20261121"))
+      (cs-server-put server
+                     "/kiwi/home/swim.ics"
+                     (cs-event-text "UID:swim@example.org" "SUMMARY:Swim" "DTSTART;VALUE=DATE:20261122"))
+      (cs-server-put server
+                     "/kiwi/home/run.ics"
+                     (cs-event-text "UID:run@example.org" "SUMMARY:Run" "DTSTART;VALUE=DATE:20261123"))
       (let ((text (cl-ppcre:regex-replace "(<2026-11-23 Mon>\\n)" (cs-sync server (format nil "#+title: Calendars~%"))
                                           (format nil "\\1Bring water.~%"))))
         (true (search "** Walk" text))
@@ -777,14 +949,18 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
   (with-cs-state ()
     (let ((server (make-cs-server)))
       (cs-server-put server "/kiwi/home/yoga.ics"
-                     (cs-event-text "UID:yoga@example.org" "SUMMARY:Yoga" "DTSTART;TZID=Europe/Stockholm:20261110T180000"
+                     (cs-event-text "UID:yoga@example.org"
+                                    "SUMMARY:Yoga"
+                                    "DTSTART;TZID=Europe/Stockholm:20261110T180000"
                                     "DTEND;TZID=Europe/Stockholm:20261110T190000"))
       (let* ((text (cs-sync server (format nil "#+title: Calendars~%")))
              (cancelled (concatenate 'string
                                      (cl-ppcre:regex-replace "\\*\\* Yoga" text
-                                                             (format nil "** CANCELLED Yoga~%CLOSED: [2026-10-28 Wed 12:00]"))
+                                                             (format nil
+                                                                     "** CANCELLED Yoga~%CLOSED: [2026-10-28 Wed 12:00]"))
                                      ;; cancelled before it was ever sent
-                                     (format nil "** CANCELLED Pottery~%CLOSED: [2026-10-28 Wed 12:00]~%<2026-11-12 Thu 18:00-19:00>~%")))
+                                     (format nil
+                                             "** CANCELLED Pottery~%CLOSED: [2026-10-28 Wed 12:00]~%<2026-11-12 Thu 18:00-19:00>~%")))
              (synced (cs-sync server cancelled)))
         (false (gethash "/kiwi/home/yoga.ics" (cs-server-events server)) "the yoga deleted there")
         (true (find "DELETE" (cs-server-requests server) :key #'first :test #'string=))
@@ -799,13 +975,17 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
 
 (define-test (caldav your-lines-kept)
   ;; the lines of an entry that are yours, kept when its event is written again
-  (let ((own (format nil "** Dentist :health:~%:PROPERTIES:~%:UID: d@x~%:LOCATION: Nelson~%:MINE: yes~%:END:~%:LOGBOOK:~%- State \"CANCELLED\"  for [2026-11-12 Thu 14:00] [2026-10-28 Wed 13:00]~%CLOCK: [2026-11-05 Thu 14:00]--[2026-11-05 Thu 14:40] =>  0:40~%:END:~%<2026-11-05 Thu 14:00-15:00 +1w>~%Bring the card.~%#+name: description~%#+begin_example~%From the clinic~%#+end_example~%- [ ] floss~%")))
+  (let ((own (format nil
+                     "** Dentist :health:~%:PROPERTIES:~%:UID: d@x~%:LOCATION: Nelson~%:MINE: yes~%:END:~%:LOGBOOK:~%- State \"CANCELLED\"  for [2026-11-12 Thu 14:00] [2026-10-28 Wed 13:00]~%CLOCK: [2026-11-05 Thu 14:00]--[2026-11-05 Thu 14:40] =>  0:40~%:END:~%<2026-11-05 Thu 14:00-15:00 +1w>~%Bring the card.~%#+name: description~%#+begin_example~%From the clinic~%#+end_example~%- [ ] floss~%")))
     (multiple-value-bind (props logbook body) (caldav::own-lines own)
       (is equal '(":MINE: yes") props)
       (is equal '("CLOCK: [2026-11-05 Thu 14:00]--[2026-11-05 Thu 14:40] =>  0:40") logbook)
       (is equal '("Bring the card." "- [ ] floss") body)
-      (is string= (format nil "** Dentist~%:PROPERTIES:~%:UID: d@x~%:MINE: yes~%:END:~%:LOGBOOK:~%CLOCK: [2026-11-05 Thu 14:00]--[2026-11-05 Thu 14:40] =>  0:40~%:END:~%<2026-11-05 Thu 16:00>~%Bring the card.~%- [ ] floss~%#+name: description~%#+begin_example~%New~%#+end_example~%")
-          (caldav::with-own-lines (format nil "** Dentist~%:PROPERTIES:~%:UID: d@x~%:END:~%<2026-11-05 Thu 16:00>~%#+name: description~%#+begin_example~%New~%#+end_example~%")
+      (is string=
+          (format nil
+                  "** Dentist~%:PROPERTIES:~%:UID: d@x~%:MINE: yes~%:END:~%:LOGBOOK:~%CLOCK: [2026-11-05 Thu 14:00]--[2026-11-05 Thu 14:40] =>  0:40~%:END:~%<2026-11-05 Thu 16:00>~%Bring the card.~%- [ ] floss~%#+name: description~%#+begin_example~%New~%#+end_example~%")
+          (caldav::with-own-lines (format nil
+                                          "** Dentist~%:PROPERTIES:~%:UID: d@x~%:END:~%<2026-11-05 Thu 16:00>~%#+name: description~%#+begin_example~%New~%#+end_example~%")
                                          props logbook body))))
   (is string= "** Board :work:removed:" (caldav::heading-tagged "** Board :work:" "removed"))
   (is string= "** Board :removed:" (caldav::heading-tagged "** Board" "removed"))
@@ -852,12 +1032,19 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
                                                                      collect (cs-ical-written (+ (cs-ical-local "20260101T090000") (* d 86400)))))
                                 "END:VEVENT"))
          (start (get-internal-real-time))
-         (found (caldav::icalendar-occurrences calendar (* 86400 (tuatara:day-number 2026 1 1)) (* 86400 (tuatara:day-number 2041 1 1))
+         (found (caldav::icalendar-occurrences calendar
+                                               (* 86400 (tuatara:day-number 2026 1 1))
+                                               (* 86400 (tuatara:day-number 2041 1 1))
                                                       :zone (tuatara:fixed-time-zone 0 "UTC"))))
     (is = 2500 (length found))
     (true (< (- (get-internal-real-time) start) (* 2 internal-time-units-per-second))))
   ;; a rule of hours written as its first time alone, not a timestamp an hour
-  (let ((text (cs-entries (cs-calendar "BEGIN:VEVENT" "UID:h" "SUMMARY:Ping" "DTSTART:20261029T090000Z" "RRULE:FREQ=HOURLY" "END:VEVENT"))))
+  (let ((text (cs-entries (cs-calendar "BEGIN:VEVENT"
+                                       "UID:h"
+                                       "SUMMARY:Ping"
+                                       "DTSTART:20261029T090000Z"
+                                       "RRULE:FREQ=HOURLY"
+                                       "END:VEVENT"))))
     (is = 1 (count #\< text)))
   ;; the state of two long addresses alike for 100 characters kept apart
   (let ((a (format nil "https://cal.example.org/~a/a/" (make-string 150 :initial-element #\x)))
@@ -868,7 +1055,12 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
     (true (eq words (caldav::agenda-unguarded words))))
   ;; a line break in a name or password never reaches curl's configuration
   (true (search "line break"
-                (handler-case (progn (caldav::curl-request "GET" "https://cal.example.invalid/" :user (format nil "kiwi~%url = https://elsewhere.invalid/") :password "x") "sent")
+                (handler-case (progn
+                                (caldav::curl-request "GET"
+                                                      "https://cal.example.invalid/"
+                                                      :user (format nil "kiwi~%url = https://elsewhere.invalid/")
+                                                      :password "x")
+                                "sent")
                   (caldav::caldav-error (e) (princ-to-string e))))))
 
 (define-test (caldav refusals-and-limits)
@@ -876,7 +1068,9 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
     (let ((server (make-cs-server)))
       (dotimes (i 3)
         (cs-server-put server (format nil "/kiwi/home/e~d.ics" i)
-                       (cs-event-text (format nil "UID:e~d@example.org" i) (format nil "SUMMARY:Event ~d" i) "DTSTART;VALUE=DATE:20261120")))
+                       (cs-event-text (format nil "UID:e~d@example.org" i)
+                                      (format nil "SUMMARY:Event ~d" i)
+                                      "DTSTART;VALUE=DATE:20261120")))
       ;; a sync fetches so many at most; the next fetches the rest
       (let ((text (let ((caldav::*most-fetched* 2)) (cs-sync server ""))))
         (is = 2 (cs-count-lines "^\\*\\* Event" text))
@@ -914,8 +1108,12 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
          (progn
            (caldav::tell-failures "Calendars not all synced" '())
            (is equal '() told)
-           (caldav::tell-failures "Calendars not all synced" '("EteSync: http://localhost:37358/ not reached: Could not connect" "Holidays: bad"))
-           (is equal '(("Calendars not all synced" "EteSync: http://localhost:37358/ not reached: Could not connect; Holidays: bad" "Calendars"))
+           (caldav::tell-failures "Calendars not all synced"
+                                  '("EteSync: http://localhost:37358/ not reached: Could not connect" "Holidays: bad"))
+           (is equal
+               '(("Calendars not all synced"
+                  "EteSync: http://localhost:37358/ not reached: Could not connect; Holidays: bad"
+                  "Calendars"))
                told))
       (sb-int:unencapsulate 'tuatara:notify 'cs-told))))
 
@@ -951,11 +1149,18 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
                (let ((clear (namestring (merge-pathnames "pass" home)))
                      (sealed (namestring (merge-pathnames "pass.gpg" home))))
                  (with-open-file (out clear :direction :output) (format out "dav-password~%"))
-                 (true (nth-value 1 (tuatara:program-output (list (tuatara:find-program "gpg") "--batch" "--quiet" "--pinentry-mode" "loopback"
+                 (true (nth-value 1
+                                  (tuatara:program-output (list (tuatara:find-program "gpg")
+                                                                "--batch"
+                                                                "--quiet"
+                                                                "--pinentry-mode"
+                                                                "loopback"
                                                           "--passphrase" "kiwi" "--symmetric" "--output" sealed clear)
                                                     :seconds 30)))
                  (is string= "dav-password"
-                     (password (format nil "gpg --quiet --batch --pinentry-mode loopback --passphrase kiwi --for-your-eyes-only --no-tty --decrypt ~a" sealed)))))
+                     (password (format nil
+                                       "gpg --quiet --batch --pinentry-mode loopback --passphrase kiwi --for-your-eyes-only --no-tty --decrypt ~a"
+                                       sealed)))))
           (if was (sb-posix:setenv "GNUPGHOME" was 1) (sb-posix:unsetenv "GNUPGHOME"))
           (ignore-errors (uiop:run-program (list "gpgconf" "--homedir" (namestring home) "--kill" "gpg-agent")))
           (uiop:delete-directory-tree home :validate t :if-does-not-exist :ignore))))))
@@ -985,7 +1190,9 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
                                (error "~a" (format nil "signed in as ~a:~a" user password))))
         (job (caldav::make-caldav-job nil nil)))
     (sb-int:encapsulate 'tuatara:notify 'cs-told
-                        (lambda (function title words &rest keys) (declare (ignore function keys)) (push (list title words) told)))
+                        (lambda (function title words &rest keys)
+                          (declare (ignore function keys))
+                          (push (list title words) told)))
     (unwind-protect
          (progn
            (caldav::sync-work job "")
@@ -1046,7 +1253,9 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
   (let ((started '())
         (caldav::*next-sync* nil)
         (caldav::*sync-job* nil))
-    (sb-int:encapsulate 'caldav::start-sync 'cs-started (lambda (function quiet) (declare (ignore function)) (push quiet started) nil))
+    (sb-int:encapsulate 'caldav::start-sync
+                        'cs-started
+                        (lambda (function quiet) (declare (ignore function)) (push quiet started) nil))
     (unwind-protect
          (let ((tuatara-user::*caldav-accounts* '((:name "E" :url "http://localhost:37358/" :user "u")))
                (tuatara-user::*caldav-minutes* 1))
@@ -1064,7 +1273,11 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
       (sb-int:unencapsulate 'caldav::start-sync 'cs-started)))
   ;; a sync on its own tells a failure once, not again at each sync while it lasts
   (let ((told '()) (caldav::*told-last* nil))
-    (sb-int:encapsulate 'tuatara:notify 'cs-told (lambda (function title words &rest keys) (declare (ignore function keys)) (push (list title words) told)))
+    (sb-int:encapsulate 'tuatara:notify
+                        'cs-told
+                        (lambda (function title words &rest keys)
+                          (declare (ignore function keys))
+                          (push (list title words) told)))
     (unwind-protect
          (flet ((sync-failing (why quiet)
                   (let ((job (caldav::make-caldav-job nil quiet)))
@@ -1083,16 +1296,19 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
 (define-test (caldav new-event-in-a-form)
   ;; C-c s n: the calendar chosen, the time asked, the title typed, filed under the calendar's heading
   (with-cs-state ()
-    (let ((file (namestring (merge-pathnames (format nil "tuatara-cs-new-~d.org" (sb-posix:getpid)) (uiop:temporary-directory)))))
+    (let ((file (namestring (merge-pathnames (format nil "tuatara-cs-new-~d.org" (sb-posix:getpid))
+                                             (uiop:temporary-directory)))))
       (unwind-protect
            (let ((caldav::*caldav-file* file))
              (alexandria:write-string-into-file
-              (format nil "* Home~%:PROPERTIES:~%:CALENDAR: https://cal.example.org/kiwi/home/~%:END:~%* Work~%:PROPERTIES:~%:CALENDAR: https://cal.example.org/kiwi/work/~%:END:~%")
+              (format nil
+                      "* Home~%:PROPERTIES:~%:CALENDAR: https://cal.example.org/kiwi/home/~%:END:~%* Work~%:PROPERTIES:~%:CALENDAR: https://cal.example.org/kiwi/work/~%:END:~%")
               file :if-exists :supersede)
              (run-keys "M-x c a l d a v - e v e n t - n e w RET W o r k RET D e n t i s t RET N e l s o n RET 2 0 2 6 - 1 1 - 0 5 SPC 1 4 : 0 0 RET B r i n g SPC t h e SPC c a r d C-c C-c"
                        :text "x" :width 120 :height 16)
              (let ((text (file-text file)))
-               (true (search (format nil "* Work~%:PROPERTIES:~%:CALENDAR: https://cal.example.org/kiwi/work/~%:END:~%** Dentist~%:PROPERTIES:~%:LOCATION: Nelson~%:END:~%<2026-11-05 Thu 14:00>~%#+name: description~%#+begin_example~%Bring the card~%#+end_example")
+               (true (search (format nil
+                                     "* Work~%:PROPERTIES:~%:CALENDAR: https://cal.example.org/kiwi/work/~%:END:~%** Dentist~%:PROPERTIES:~%:LOCATION: Nelson~%:END:~%<2026-11-05 Thu 14:00>~%#+name: description~%#+begin_example~%Bring the card~%#+end_example")
                              text)
                      "~a" text)
                ;; an entry the next sync sends as an event
@@ -1113,5 +1329,6 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
                (is string= "Lunch" (caldav::ical-value-of event "SUMMARY"))
                (false (caldav::ical-value-of event "LOCATION"))
                (false (caldav::ical-value-of event "DESCRIPTION"))))
-        (let ((b (tuatara.buffer:find-buffer (file-namestring file)))) (when b (tuatara.buffer:buffer-mark-saved b) (tuatara.buffer:kill-buffer b)))
+        (let ((b (tuatara.buffer:find-buffer (file-namestring file))))
+          (when b (tuatara.buffer:buffer-mark-saved b) (tuatara.buffer:kill-buffer b)))
         (uiop:delete-file-if-exists file)))))

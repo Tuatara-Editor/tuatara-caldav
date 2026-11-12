@@ -36,7 +36,7 @@ the window gpg-agent opens for it.")
 (defun command-password (account)
   "The password ACCOUNT's :PASSWORD-COMMAND prints, its first line: the
 command split into words as a shell splits it, though no shell runs, a word
-beginning with ~/ in your home folder. A CALDAV-ERROR when it fails; what it
+beginning with ~/ in your home directory. A CALDAV-ERROR when it fails; what it
 prints is never said."
   (multiple-value-bind (words ok why) (command-words (getf account :password-command))
     (unless (and ok words)
@@ -46,7 +46,9 @@ prints is never said."
       (unless program
         (caldav-fail "The password command of ~a: ~a is not installed" (getf account :name) (first words)))
       (multiple-value-bind (said ok) (program-output (cons program (rest words)) :seconds *password-command-seconds*)
-        (let ((password (and said (string-right-trim '(#\Return) (subseq said 0 (or (position #\Newline said) (length said)))))))
+        (let ((password (and said
+                             (string-right-trim '(#\Return)
+                                                (subseq said 0 (or (position #\Newline said) (length said)))))))
           (unless (and ok password (plusp (length password)))
             (caldav-fail "The password command of ~a gave no password: ~a ~:[failed~;printed nothing~]"
                          (getf account :name) (first words) ok))
@@ -148,20 +150,24 @@ sync that failed is seen wherever you are looking."
 next, (FAILURES . MISSING): said again only when it changes.")
 
 (defmethod job-take-in ((job caldav-job))
-  "Write what the sync fetched into the calendars' file, keep what each calendar now agrees with its server, and say what was done."
+  "Write what the sync fetched into the calendars' file, keep what each calendar now agrees
+with its server, and say what was done."
   (let ((passes (caldav-job-passes job)))
     ;; what each calendar agrees with its server is kept only once it is in the file
     (when passes
       (handler-case
           (progn (put-into-calendars (lambda (text) (merged-text text passes)))
                  (dolist (pass passes)
-                   (write-calendar-state (calendar-pass-folder pass) (calendar-pass-token pass) (calendar-pass-events pass))))
+                   (write-calendar-state (calendar-pass-directory pass)
+                                         (calendar-pass-token pass)
+                                         (calendar-pass-events pass))))
         (error (e)
           (push (format nil "~a not written: ~a" (abbreviated-path (sync-file-path)) e) (caldav-job-failed job)))))
     (let* ((missing (loop for p in passes sum (calendar-pass-missing p)))
            (failed (reverse (caldav-job-failed job)))
            (quiet (caldav-job-quiet job))
-           (worked (some (lambda (p) (or (plusp (calendar-pass-sent p)) (plusp (calendar-pass-fetched p)) (calendar-pass-gone p)))
+           (worked (some (lambda (p)
+                           (or (plusp (calendar-pass-sent p)) (plusp (calendar-pass-fetched p)) (calendar-pass-gone p)))
                          passes))
            ;; a sync on its own says failures and entries deleted here once, not again while they last
            (new (not (equal (cons failed missing) *told-last*)))
@@ -173,7 +179,8 @@ next, (FAILURES . MISSING): said again only when it changes.")
                 (loop for p in passes sum (calendar-pass-fetched p))
                 (some #'calendar-pass-gone passes) (loop for p in passes sum (length (calendar-pass-gone p)))
                 (loop for (name . count) in (caldav-job-subscribed job) append (list name count))
-                (and (plusp missing) (list missing (substitute-command-keys "\\[caldav-deleted] deletes them there or puts them back")))
+                (and (plusp missing)
+                     (list missing (substitute-command-keys "\\[caldav-deleted] deletes them there or puts them back")))
                 failed))
       (tell-failures "Calendars not all synced" new-failures))))
 
@@ -272,7 +279,9 @@ Tuatara reaches the server, and what it finds there. In the background."
                                             (mapcar (lambda (c) (getf c :name)) calendars)
                                             (mapcar (lambda (c) (getf c :name)) (chosen-calendars account calendars)))
                                       (calendar-list-job-found job))))
-                            (error (e) (push (format nil "~a: ~a" (getf account :name) (failure-said e)) (calendar-list-job-failed job))))))
+                            (error (e)
+                                   (push (format nil "~a: ~a" (getf account :name) (failure-said e))
+                                         (calendar-list-job-failed job))))))
                       :name "tuatara caldav list")
     (take-in-soon job 0 "Asking for the calendars")))
 
@@ -280,22 +289,23 @@ Tuatara reaches the server, and what it finds there. In the background."
 
 (defun missing-events ()
   "The events the calendars' file no longer has an entry of, under a
-calendar's heading that is there: each a folder, an agreed event and the
-calendar's web address (URL), as (FOLDER AGREED URL)."
+calendar's heading that is there: each a directory, an agreed event and the
+calendar's web address (URL), as (DIRECTORY AGREED URL)."
   (let* ((text (buffer-string (calendars-buffer)))
          (sections (calendar-sections text (file-entries text))))
     (loop for section in sections
-          for folder = (calendar-folder (getf section :url))
-          nconc (loop for a in (nth-value 1 (read-calendar-state folder))
+          for directory = (calendar-directory (getf section :url))
+          nconc (loop for a in (nth-value 1 (read-calendar-state directory))
                       unless (entry-of-uid section (agreed-uid a))
-                        collect (list folder a (getf section :url))))))
+                        collect (list directory a (getf section :url))))))
 
 (defun missing-title (missing)
   "The title of the event of MISSING, an element of MISSING-EVENTS."
-  (destructuring-bind (folder agreed url) missing
+  (destructuring-bind (directory agreed url) missing
     (declare (ignore url))
-    (let* ((calendar (agreed-calendar folder agreed))
-           (event (and calendar (find-if (lambda (c) (member (ical-component-name c) '("VEVENT" "VTODO") :test #'string-equal))
+    (let* ((calendar (agreed-calendar directory agreed))
+           (event (and calendar
+                       (find-if (lambda (c) (member (ical-component-name c) '("VEVENT" "VTODO") :test #'string-equal))
                                          (ical-components-of calendar)))))
       (or (and event (ical-value-of event "SUMMARY") (one-line (ical-text (ical-value-of event "SUMMARY"))))
           (agreed-uid agreed)))))
@@ -316,11 +326,11 @@ those that went; FAILED, what went wrong, in words."
 (defmethod job-take-in ((job calendar-delete-job))
   "Forget the events deleted, and say what was done."
   (dolist (missing (calendar-delete-job-deleted job))
-    (destructuring-bind (folder agreed url) missing
+    (destructuring-bind (directory agreed url) missing
       (declare (ignore url))
-      (multiple-value-bind (token events) (read-calendar-state folder)
-        (write-calendar-state folder token (remove (agreed-url agreed) events :key #'agreed-url :test #'string=))
-        (ignore-errors (remove-file (path-join folder (agreed-file agreed)))))))
+      (multiple-value-bind (token events) (read-calendar-state directory)
+        (write-calendar-state directory token (remove (agreed-url agreed) events :key #'agreed-url :test #'string=))
+        (ignore-errors (remove-file (path-join directory (agreed-file agreed)))))))
   (message "~:d event~:p deleted on ~:*~[their servers~;its server~:;their servers~]~@[; failed: ~{~a~^; ~}~]"
            (length (calendar-delete-job-deleted job)) (reverse (calendar-delete-job-failed job)))
   (tell-failures "Events not all deleted on their servers" (reverse (calendar-delete-job-failed job))))
@@ -330,8 +340,8 @@ those that went; FAILED, what went wrong, in words."
 account: JOB's work. What goes wrong with one event is noted, in the words
 FAILURE-SAID gives, and the others are deleted all the same."
   (dolist (m (calendar-delete-job-missing job))
-    (destructuring-bind (folder agreed url) m
-      (declare (ignore folder))
+    (destructuring-bind (directory agreed url) m
+      (declare (ignore directory))
       (handler-case
           (with-signed-in (signed (account-of url))
             (let ((outcome (delete-event signed (agreed-url agreed) (agreed-etag agreed))))
@@ -348,7 +358,8 @@ the server has them."
   (let ((missing (missing-events)))
     (cond
       ((null missing) (message "Every event synced still has its entry"))
-      ((yes-or-no-p* (format nil "Delete on the server ~:d event~:p deleted here (~{~a~^, ~})? n puts ~:*~:*~[them~;it~:;them~] back"
+      ((yes-or-no-p* (format nil
+                             "Delete on the server ~:d event~:p deleted here (~{~a~^, ~})? n puts ~:*~:*~[them~;it~:;them~] back"
                              (length missing) (mapcar #'missing-title missing)))
        (let ((job (make-calendar-delete-job (current-buffer) missing)))
          (start-job-thread job #'delete-missing-work :name "tuatara caldav delete")
@@ -356,13 +367,15 @@ the server has them."
       (t
        (put-into-calendars
         (lambda (text)
-          (merged-text text (loop for (folder agreed url) in missing
-                                  for calendar = (agreed-calendar folder agreed)
+          (merged-text text (loop for (directory agreed url) in missing
+                                  for calendar = (agreed-calendar directory agreed)
                                   for members = (and calendar (group-of-uid calendar (agreed-uid agreed)))
                                   when members
-                                    collect (let ((pass (make-calendar-pass url "" folder)))
+                                    collect (let ((pass (make-calendar-pass url "" directory)))
                                               (setf (calendar-pass-incoming pass)
-                                                    (list (list (agreed-uid agreed) (event-entry members calendar :level 2) nil)))
+                                                    (list (list (agreed-uid agreed)
+                                                                (event-entry members calendar :level 2)
+                                                                nil)))
                                               pass)))))
        (message "~:d entr~:@p put back" (length missing))))))
 
@@ -405,7 +418,13 @@ entries; COUNT, how many; FAILED, what went wrong, in words."
                               (if section (getf section :end) (length text)))
                             (length text))))
                 (concatenate 'string (subseq text 0 at) (on-new-line text at)
-                             (if url "" (format nil "* ~a~%" (heading-words (format nil "Imported from ~a" (native-file-name (calendar-import-job-path job))))))
+                             (if url
+                                 ""
+                                 (format nil
+                                         "* ~a~%"
+                                         (heading-words (format nil
+                                                                "Imported from ~a"
+                                                                (native-file-name (calendar-import-job-path job))))))
                              entries (subseq text at)))))
            (message "~:d event~:p imported into ~a~:[~; (sent at the next sync)~]"
                     (calendar-import-job-count job) (abbreviated-path (sync-file-path)) url)))))
@@ -425,12 +444,16 @@ heading of its own, never synced. Read in the background."
             (start-job-thread job
                               (lambda (job)
                                 (handler-case
-                                    (dolist (c (icalendar-read (octets-string (file-octets native-path :limit *icalendar-largest*))))
+                                    (dolist (c (icalendar-read (octets-string (file-octets native-path
+                                                                                           :limit *icalendar-largest*))))
                                       (job-check-stop)
                                       (multiple-value-bind (text count) (calendar-entries c)
-                                        (setf (calendar-import-job-entries job) (concatenate 'string (or (calendar-import-job-entries job) "") text))
+                                        (setf (calendar-import-job-entries job)
+                                              (concatenate 'string (or (calendar-import-job-entries job) "") text))
                                         (incf (calendar-import-job-count job) count)))
-                                  (error (e) (setf (calendar-import-job-failed job) (format nil "~a not imported: ~a" (abbreviated-path native-path) e)))))
+                                  (error (e)
+                                         (setf (calendar-import-job-failed job)
+                                               (format nil "~a not imported: ~a" (abbreviated-path native-path) e)))))
                               :name "tuatara caldav import")
             (take-in-soon job 0.2 "Reading the calendar file")))))))
 
@@ -463,14 +486,17 @@ tags and description."
             (let* ((zones (remove-duplicates (loop for c in calendars append (ical-components-of c "VTIMEZONE"))
                                              :key (lambda (z) (ical-value-of z "TZID")) :test #'equal))
                    (events (loop for c in calendars append (calendar-events c)))
-                   (whole (make-ical-component "VCALENDAR" (ical-component-properties (first calendars)) (append zones events))))
+                   (whole (make-ical-component "VCALENDAR"
+                                               (ical-component-properties (first calendars))
+                                               (append zones events))))
               (replace-file path (icalendar-write whole))
               (message "~:d entr~:@p written to ~a" (length calendars) (abbreviated-path path))))))))
 
 ;;; New events
 
 (defparameter *new-event-form*
-  (format nil "* %^{Title}~%:PROPERTIES:~%:LOCATION: %^{Place (RET for none)}~%:END:~%%^T~%#+name: description~%#+begin_example~%%?~%#+end_example")
+  (format nil
+          "* %^{Title}~%:PROPERTIES:~%:LOCATION: %^{Place (RET for none)}~%:END:~%%^T~%#+name: description~%#+begin_example~%%?~%#+end_example")
   "The form CALDAV-EVENT-NEW opens: its title, place and time asked first,
 in that order, then the description written between the block's two lines,
 where point is.")

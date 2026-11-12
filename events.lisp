@@ -100,14 +100,19 @@ keyword or a priority, and after a last word it could read as tags."
 a keyword, escaped as Org escapes them, and marked where the agenda would
 read more than words (AGENDA-GUARDED)."
   (let ((text (string-right-trim '(#\Newline) (remove #\Return description))))
-    (format nil "#+name: ~a~%#+begin_example~%~a~%#+end_example~%" *description-name* (org-escape-block (agenda-guarded text)))))
+    (format nil
+            "#+name: ~a~%#+begin_example~%~a~%#+end_example~%"
+            *description-name*
+            (org-escape-block (agenda-guarded text)))))
 
 (defun block-description (text start end)
   "The description of the entry in TEXT from START below END, from its block
 named *DESCRIPTION-NAME*, as DESCRIPTION-BLOCK wrote it from; NIL when it has none."
   (multiple-value-bind (match groups)
       (cl-ppcre:scan-to-strings
-       (format nil "(?ims)^[ \\t]*#\\+name:[ \\t]*~a[ \\t]*\\n[ \\t]*#\\+begin_example[^\\n]*\\n(.*?)^[ \\t]*#\\+end_example" *description-name*)
+       (format nil
+               "(?ims)^[ \\t]*#\\+name:[ \\t]*~a[ \\t]*\\n[ \\t]*#\\+begin_example[^\\n]*\\n(.*?)^[ \\t]*#\\+end_example"
+               *description-name*)
        text :start start :end end)
     (when match
       (agenda-unguarded (string-right-trim '(#\Newline) (org-unescape-block (aref groups 0)))))))
@@ -128,7 +133,9 @@ is a repeater for it."
            (multiple-value-bind (year month date) (day-date day)
              (org-ts-text (make-org-ts :active t :year year :month month :day date :hour hour :minute minute
                                        :end-hour end-hour :end-minute end-minute
-                                       :repeater (and repeat :cumulate) :repeat-value (first repeat) :repeat-unit (second repeat))))))
+                                       :repeater (and repeat :cumulate)
+                                       :repeat-value (first repeat)
+                                       :repeat-unit (second repeat))))))
     (if whole-day
         (let ((last (max local (1- (or end (1+ local))))))
           (if (= last local)
@@ -171,10 +178,16 @@ number START-DAY, as (VALUE UNIT); NIL when Org's repeater says something else."
     (let ((freq (ical-recur-freq recur)))
       (and (null (ical-recur-count recur)) (null (ical-recur-until recur))
            (null (ical-recur-by-second recur)) (null (ical-recur-by-minute recur)) (null (ical-recur-by-hour recur))
-           (null (ical-recur-by-set-pos recur)) (null (ical-recur-by-week-no recur)) (null (ical-recur-by-year-day recur))
+           (null (ical-recur-by-set-pos recur))
+           (null (ical-recur-by-week-no recur))
+           (null (ical-recur-by-year-day recur))
            (case freq
-             (:daily (and (null (ical-recur-by-day recur)) (null (ical-recur-by-month-day recur)) (null (ical-recur-by-month recur))))
-             (:weekly (and (member (ical-recur-by-day recur) (list nil (list (cons nil (weekday start-day)))) :test #'equal)
+             (:daily (and (null (ical-recur-by-day recur))
+                          (null (ical-recur-by-month-day recur))
+                          (null (ical-recur-by-month recur))))
+             (:weekly (and (member (ical-recur-by-day recur)
+                                   (list nil (list (cons nil (weekday start-day))))
+                                   :test #'equal)
                            (null (ical-recur-by-month-day recur)) (null (ical-recur-by-month recur))))
              (:monthly (and (null (ical-recur-by-day recur)) (<= date 28)
                             (member (ical-recur-by-month-day recur) (list nil (list date)) :test #'equal)
@@ -198,8 +211,12 @@ says it."
                (format nil "diary-cyclic ~d ~a" n (day-text day)))
              (plain-days ()
                (and (every (lambda (d) (null (car d))) by-day) (sort (mapcar #'cdr by-day) #'<))))
-        (when (and (null (ical-recur-by-second recur)) (null (ical-recur-by-minute recur)) (null (ical-recur-by-hour recur))
-                   (null (ical-recur-by-set-pos recur)) (null (ical-recur-by-week-no recur)) (null (ical-recur-by-year-day recur)))
+        (when (and (null (ical-recur-by-second recur))
+                   (null (ical-recur-by-minute recur))
+                   (null (ical-recur-by-hour recur))
+                   (null (ical-recur-by-set-pos recur))
+                   (null (ical-recur-by-week-no recur))
+                   (null (ical-recur-by-year-day recur)))
           (case (ical-recur-freq recur)
             (:daily
              (when (and (null month-day) (null by-month))
@@ -219,7 +236,10 @@ says it."
             (:monthly
              (let ((months (repeat-months start-day interval)))
                (when (and months (null by-month))
-                 (cond ((and (= (length by-day) 1) (car (first by-day)) (<= (abs (car (first by-day))) 5) (null month-day))
+                 (cond ((and (= (length by-day) 1)
+                             (car (first by-day))
+                             (<= (abs (car (first by-day))) 5)
+                             (null month-day))
                         (format nil "diary-float ~a ~d ~d" months (cdr (first by-day)) (car (first by-day))))
                        ((and (null by-day) (member month-day (list nil (list date)) :test #'equal))
                         (format nil "diary-date ~a ~d t" months date))))))
@@ -260,7 +280,8 @@ time NOW; NIL when Org cannot say them."
              (one-day (if whole-day (= end (1+ start)) (= (floor end 86400) start-day)))
              (own-clock (or whole-day (null (ical-time-zone start-time))
                             (equal (ical-time-zone start-time) (time-zone-name zone))
-                            (and (stringp (ical-time-zone start-time)) (eq (funcall zones (ical-time-zone start-time)) zone)))))
+                            (and (stringp (ical-time-zone start-time))
+                                 (eq (funcall zones (ical-time-zone start-time)) zone)))))
         (cond ((and (null rules) (null (ical-property-of master "RDATE")) (null changes))
                (list (list (local-timestamp start :end end :whole-day whole-day)) '()))
               ((or (rest rules) (null recur) (ical-property-of master "RDATE") (not one-day) (not own-clock))
@@ -269,17 +290,21 @@ time NOW; NIL when Org cannot say them."
                (let ((notes '()))
                  (dolist (p (ical-properties-of master "EXDATE"))
                    (dolist (time (ical-property-times p))
-                     (push (org-occurrence-note :cancelled (occurrence-of-local (if whole-day (ical-local time) (local-in time zone zones zone)) whole-day) nil now)
+                     (push (org-occurrence-note :cancelled (occurrence-of-local (if whole-day (ical-local time) (local-in time zone zones zone)) whole-day)
+                                                nil
+                                                now)
                            notes)))
                  (dolist (c changes)
                    (let* ((id (ical-property-time (ical-property-of c "RECURRENCE-ID")))
-                          (from (and id (occurrence-of-local (if whole-day (ical-local id) (local-in id zone zones zone)) whole-day))))
+                          (from (and id
+                                     (occurrence-of-local (if whole-day (ical-local id) (local-in id zone zones zone)) whole-day))))
                      (when from
                        (if (string-equal (or (ical-value-of c "STATUS") "") "CANCELLED")
                            (push (org-occurrence-note :cancelled from nil now) notes)
                            (multiple-value-bind (moved-start moved-end moved-whole) (event-span c zones zone)
                              (declare (ignore moved-end))
-                             (let ((to (and moved-start (occurrence-of-local (if moved-whole (* 86400 moved-start) moved-start) moved-whole))))
+                             (let ((to (and moved-start
+                                            (occurrence-of-local (if moved-whole (* 86400 moved-start) moved-start) moved-whole))))
                                (when (and to (not (equal to from)))
                                  (push (org-occurrence-note :moved from to now) notes))))))))
                  ;; more times cancelled or moved than are written out: its times written out instead
@@ -287,13 +312,19 @@ time NOW; NIL when Org cannot say them."
                    (return-from org-times-of nil))
                  (let ((repeat (repeat-of recur start-day)))
                    (if repeat
-                       (list (list (local-timestamp start :end end :whole-day whole-day :repeat repeat)) (nreverse notes))
+                       (list (list (local-timestamp start :end end :whole-day whole-day :repeat repeat))
+                             (nreverse notes))
                        (let ((last (rule-last-day recur local whole-day zones zone)))
                          (multiple-value-bind (form from-start) (rule-form recur start-day last)
-                           (when (and form (or last (and (null (ical-recur-count recur)) (null (ical-recur-until recur)))))
-                             (let* ((time (and (not whole-day) (org-ts-time-text (org-read-ts (local-timestamp start :end end)))))
+                           (when (and form
+                                      (or last (and (null (ical-recur-count recur)) (null (ical-recur-until recur)))))
+                             (let* ((time (and (not whole-day)
+                                               (org-ts-time-text (org-read-ts (local-timestamp start :end end)))))
                                     (text (if (or last (not from-start))
-                                              (repeat-rule-text form time start-day (or last (repeat-open-end start-day)))
+                                              (repeat-rule-text form
+                                                                time
+                                                                start-day
+                                                                (or last (repeat-open-end start-day)))
                                               (repeat-rule-text form time)))
                                     (rule (org-read-rule text)))
                                ;; the form must take the event's first day, or it says other days than the event's
@@ -311,7 +342,10 @@ timestamps' texts on ZONE's clock, *MOST-TIMES-WRITTEN* at most."
                         (ical-properties-of (first members) "RRULE"))
                   1
                   *most-times-written*)))
-    (loop for o in (icalendar-occurrences (make-ical-component "VCALENDAR" '() (append zones members)) from to :zone zone)
+    (loop for o in (icalendar-occurrences (make-ical-component "VCALENDAR" '() (append zones members))
+                                          from
+                                          to
+                                          :zone zone)
           for count from 0 below most
           unless (string-equal (or (ical-value-of (ical-occurrence-component o) "STATUS") "") "CANCELLED")
             collect (if (ical-occurrence-whole-day o)
@@ -336,7 +370,10 @@ the universal time FROM below TO; notes are noted at NOW."
          (done (and task (or (string= status "COMPLETED") (ical-property-of master "COMPLETED"))))
          (tags (remove-duplicates
                 (append (loop for p in (ical-properties-of master "CATEGORIES")
-                              nconc (loop for c in (ical-texts (ical-property-value p)) for tag = (tag-name c) when tag collect tag))
+                              nconc (loop for c in (ical-texts (ical-property-value p))
+                                          for tag = (tag-name c)
+                                          when tag
+                                            collect tag))
                         (and (string= status "CANCELLED") (list *cancelled-tag*)))
                 :test #'string= :from-end t))
          (summary (ical-text (or (ical-value-of master "SUMMARY") "")))
@@ -353,7 +390,10 @@ the universal time FROM below TO; notes are noted at NOW."
       (when task
         (flet ((planned (name)
                  (let ((time (ical-property-time (ical-property-of master name))))
-                   (and time (local-timestamp (if (ical-time-date-p time) (ical-time-day time) (local-in time zone zones zone))
+                   (and time
+                        (local-timestamp (if (ical-time-date-p time)
+                                             (ical-time-day time)
+                                             (local-in time zone zones zone))
                                               :whole-day (ical-time-date-p time))))))
           (let ((deadline (planned "DUE")) (scheduled (planned "DTSTART"))
                 (closed (let* ((time (ical-property-time (ical-property-of master "COMPLETED")))
@@ -417,18 +457,26 @@ ZONE's clock: start (DTSTART), end (DTEND), and recurrence rule (RRULE) for a re
        (if (or (null (org-ts-get ts :hour)) (and until (null (org-ts-get until :hour))))
            (let ((day (org-ts-get ts :day-number)))
              (list (ical-time-property "DTSTART" (make-ical-time day))
-                   (ical-time-property "DTEND" (make-ical-time (1+ (max day (if until (org-ts-get until :day-number) day)))))))
+                   (ical-time-property "DTEND"
+                                       (make-ical-time (1+ (max day (if until (org-ts-get until :day-number) day)))))))
            (let* ((start (ts-local ts))
                   (end (cond (until (ts-local until))
                              ((org-ts-get ts :end-hour)
-                              (let ((end (+ (* 86400 (org-ts-get ts :day-number)) (* 3600 (org-ts-get ts :end-hour)) (* 60 (org-ts-get ts :end-minute)))))
+                              (let ((end (+ (* 86400 (org-ts-get ts :day-number))
+                                            (* 3600 (org-ts-get ts :end-hour))
+                                            (* 60 (org-ts-get ts :end-minute)))))
                                 (if (< end start) (+ end 86400) end))))))
              (list* (ical-time-property "DTSTART" (local-ical-time start zone))
                     (and end (> end start) (list (ical-time-property "DTEND" (local-ical-time end zone)))))))
        (when (and (org-ts-get ts :repeat-value) (plusp (org-ts-get ts :repeat-value)))
          (list (make-ical-property "RRULE"
                                    (format nil "FREQ=~a~@[;INTERVAL=~d~]"
-                                           (ecase (org-ts-get ts :repeat-unit) (#\h "HOURLY") (#\d "DAILY") (#\w "WEEKLY") (#\m "MONTHLY") (#\y "YEARLY"))
+                                           (ecase (org-ts-get ts :repeat-unit)
+                                             (#\h "HOURLY")
+                                             (#\d "DAILY")
+                                             (#\w "WEEKLY")
+                                             (#\m "MONTHLY")
+                                             (#\y "YEARLY"))
                                            (let ((n (org-ts-get ts :repeat-value))) (and (/= 1 n) n))))))))))
 
 (defun evenly-interval (months)
@@ -459,7 +507,10 @@ gives, or NIL for each; NIL when no rule of recurrence says it."
                 ((and (= (length parts) 2) (kind :cyclic) (kind :weekdays))
                  (destructuring-bind (n start) (org-rule-get (kind :cyclic) :arguments)
                    (setf first (or first start))
-                   (make-ical-recur :daily :interval n :by-day (mapcar (lambda (wd) (cons nil wd)) (sort (copy-list (first (org-rule-get (kind :weekdays) :arguments))) #'<)))))
+                   (make-ical-recur :daily
+                                    :interval n
+                                    :by-day (mapcar (lambda (wd) (cons nil wd))
+                                                    (sort (copy-list (first (org-rule-get (kind :weekdays) :arguments))) #'<)))))
                 ((rest parts) nil)
                 (t
                  (let ((main (first parts)))
@@ -467,30 +518,46 @@ gives, or NIL for each; NIL when no rule of recurrence says it."
                      (case (org-rule-get main :kind)
                        (:float (and (integerp b) (null d)
                                     (cond ((eq a t) (make-ical-recur :monthly :by-day (list (cons c b))))
-                                          ((integerp a) (make-ical-recur :yearly :by-month (list a) :by-day (list (cons c b))))
+                                          ((integerp a)
+                                           (make-ical-recur :yearly :by-month (list a) :by-day (list (cons c b))))
                                           ((consp a) (let ((interval (evenly-interval a)))
-                                                       (and interval (make-ical-recur :monthly :interval interval :by-day (list (cons c b)))))))))
-                       (:weekdays (make-ical-recur :weekly :by-day (mapcar (lambda (wd) (cons nil wd)) (sort (copy-list a) #'<))))
+                                                       (and interval
+                                                            (make-ical-recur :monthly
+                                                                             :interval interval
+                                                                             :by-day (list (cons c b)))))))))
+                       (:weekdays (make-ical-recur :weekly
+                                                   :by-day (mapcar (lambda (wd) (cons nil wd)) (sort (copy-list a) #'<))))
                        (:cyclic (setf first (or first b))
-                        (if (zerop (mod a 7)) (make-ical-recur :weekly :interval (/ a 7)) (make-ical-recur :daily :interval a)))
+                        (if (zerop (mod a 7))
+                            (make-ical-recur :weekly :interval (/ a 7))
+                            (make-ical-recur :daily :interval a)))
                        ;; every so many weeks on several days: a cycle of weeks each
                        (:any (let ((cycles (mapcar (lambda (r) (org-rule-get r :arguments)) a)))
                                (when (and (every (lambda (r) (eq (org-rule-get r :kind) :cyclic)) a)
                                           (every (lambda (c) (and (= (first c) (first (first cycles))) (zerop (mod (first c) 7)))) cycles))
                                  (setf first (or first (reduce #'min cycles :key #'second)))
                                  (make-ical-recur :weekly :interval (/ (first (first cycles)) 7)
-                                                          :by-day (sort (mapcar (lambda (c) (cons nil (weekday (second c)))) cycles) #'< :key #'cdr)))))
-                       (:date (cond ((and (eq a t) (integerp c) (eq b t)) (make-ical-recur :monthly :by-month-day (list c)))
-                                    ((and (eq a t) (integerp c) (integerp b)) (make-ical-recur :yearly :by-month (list b) :by-month-day (list c)))
+                                                          :by-day (sort (mapcar (lambda (c) (cons nil (weekday (second c)))) cycles)
+                                                                        #'<
+                                                                        :key #'cdr)))))
+                       (:date (cond ((and (eq a t) (integerp c) (eq b t))
+                                     (make-ical-recur :monthly :by-month-day (list c)))
+                                    ((and (eq a t) (integerp c) (integerp b))
+                                     (make-ical-recur :yearly :by-month (list b) :by-month-day (list c)))
                                     ((and (eq a t) (integerp c) (consp b))
                                      (let ((interval (evenly-interval b)))
-                                       (and interval (make-ical-recur :monthly :interval interval :by-month-day (list c)))))
+                                       (and interval
+                                            (make-ical-recur :monthly :interval interval :by-month-day (list c)))))
                                     ((and (consp a) (integerp b) (integerp c) (rest a))
                                      (let* ((years (sort (copy-list a) #'<)) (step (- (second years) (first years))))
-                                       (when (and (plusp step) (loop for (x y) on years while y always (= (- y x) step)))
+                                       (when (and (plusp step)
+                                                  (loop for (x y) on years while y always (= (- y x) step)))
                                          (setf first (or first (day-number (first years) b c))
                                                last (or last (day-number (car (last years)) b c)))
-                                         (make-ical-recur :yearly :interval step :by-month (list b) :by-month-day (list c)))))))
+                                         (make-ical-recur :yearly
+                                                          :interval step
+                                                          :by-month (list b)
+                                                          :by-month-day (list c)))))))
                        (:anniversary (setf first (or first (and c (day-number c a b))))
                         (make-ical-recur :yearly :by-month (list a) :by-month-day (list b))))))))))
         (and recur (values recur first last))))))
@@ -511,7 +578,9 @@ rule takes from the day number TODAY; NIL when no rule of recurrence says it."
               (let* ((hour (org-rule-get rule :hour))
                      (start (+ (* 86400 first) (* 3600 (or hour 0)) (* 60 (or (org-rule-get rule :minute) 0))))
                      (end (and hour (org-rule-get rule :end-hour)
-                               (+ (* 86400 first) (* 3600 (org-rule-get rule :end-hour)) (* 60 (org-rule-get rule :end-minute))))))
+                               (+ (* 86400 first)
+                                  (* 3600 (org-rule-get rule :end-hour))
+                                  (* 60 (org-rule-get rule :end-minute))))))
                 (when last
                   (setf (ical-recur-until recur)
                         (if hour
@@ -520,7 +589,9 @@ rule takes from the day number TODAY; NIL when no rule of recurrence says it."
                             (make-ical-time last))))
                 (append (if hour
                             (list* (ical-time-property "DTSTART" (local-ical-time start zone))
-                                   (and end (> end start) (list (ical-time-property "DTEND" (local-ical-time end zone)))))
+                                   (and end
+                                        (> end start)
+                                        (list (ical-time-property "DTEND" (local-ical-time end zone)))))
                             (list (ical-time-property "DTSTART" (make-ical-time first))
                                   (ical-time-property "DTEND" (make-ical-time (1+ first)))))
                         (list (make-ical-property "RRULE" (ical-recur-text recur))))))))))))
@@ -638,7 +709,8 @@ yet (NEW-UID); time stamp (DTSTAMP) is NOW."
                        ;; in the order written
                        (let ((text (agenda-entry-get entry :text)) (from (agenda-entry-get entry :position)))
                          (sort (append stamps ranges) #'<
-                               :key (lambda (stamp) (or (search stamp text :start2 from :end2 (agenda-entry-get entry :end)) 0)))))
+                               :key (lambda (stamp)
+                                      (or (search stamp text :start2 from :end2 (agenda-entry-get entry :end)) 0)))))
                       ((and (agenda-entry-get entry :scheduled)
                             (char= (char (agenda-entry-get entry :scheduled) 0) #\<))
                        (list (agenda-entry-get entry :scheduled)))))
@@ -652,17 +724,22 @@ yet (NEW-UID); time stamp (DTSTAMP) is NOW."
                (let ((categories (loop for tag in tags
                                        collect (or (and kept-master
                                                         (loop for p in (ical-properties-of kept-master "CATEGORIES")
-                                                              thereis (find tag (ical-texts (ical-property-value p)) :key #'tag-name :test #'equal)))
+                                                              thereis (find tag
+                                                                            (ical-texts (ical-property-value p))
+                                                                            :key #'tag-name
+                                                                            :test #'equal)))
                                                    tag))))
                  (remove nil
-                         (list (make-ical-property "SUMMARY" (ical-text-escaped (summary-words (agenda-entry-get entry :title))))
+                         (list (make-ical-property "SUMMARY"
+                                                   (ical-text-escaped (summary-words (agenda-entry-get entry :title))))
                                (and location (make-ical-property "LOCATION" (ical-text-escaped location)))
                                (and categories (make-ical-property "CATEGORIES" (ical-texts-escaped categories)))
                                (and status (make-ical-property "STATUS" status))
                                (and description (make-ical-property "DESCRIPTION" (ical-text-escaped description)))
                                (ical-time-property "DTSTAMP" stamp-utc)
                                (and (eq kind :changed) kept-master (ical-value-of kept-master "SEQUENCE")
-                                    (make-ical-property "SEQUENCE" (princ-to-string (1+ (or (ignore-errors (parse-integer (ical-value-of kept-master "SEQUENCE"))) 0)))))))))
+                                    (make-ical-property "SEQUENCE"
+                                                        (princ-to-string (1+ (or (ignore-errors (parse-integer (ical-value-of kept-master "SEQUENCE"))) 0)))))))))
              (status-of (kept-master)
                (let ((was (and kept-master (string-upcase (or (ical-value-of kept-master "STATUS") "")))))
                  (cond (cancelled-tag "CANCELLED")
@@ -674,12 +751,18 @@ yet (NEW-UID); time stamp (DTSTAMP) is NOW."
                   (done (string= (symbol-name (agenda-entry-get entry :todo-type)) "DONE"))
                   (timing (flet ((planned (name text)
                                    (let ((props (timing-of-stamp text zone)))
-                                     (and props (let ((p (first props))) (make-ical-property name (ical-property-value p) (ical-property-parameters p)))))))
+                                     (and props
+                                          (let ((p (first props)))
+                                            (make-ical-property name
+                                                                (ical-property-value p)
+                                                                (ical-property-parameters p)))))))
                             (remove nil (list (planned "DUE" (agenda-entry-get entry :deadline))
-                                              (and (agenda-entry-get entry :scheduled) (planned "DTSTART" (agenda-entry-get entry :scheduled)))))))
+                                              (and (agenda-entry-get entry :scheduled)
+                                                   (planned "DTSTART" (agenda-entry-get entry :scheduled)))))))
                   (closed (and done (agenda-entry-get entry :closed) (org-read-ts (agenda-entry-get entry :closed))))
                   (status (cond (done "COMPLETED")
-                                ((and kept (string-equal (or (ical-value-of kept "STATUS") "") "COMPLETED")) "NEEDS-ACTION")
+                                ((and kept (string-equal (or (ical-value-of kept "STATUS") "") "COMPLETED"))
+                                 "NEEDS-ACTION")
                                 (t (status-of kept)))))
              (list (make-ical-component
                     "VTODO"
@@ -688,7 +771,8 @@ yet (NEW-UID); time stamp (DTSTAMP) is NOW."
                                                 (said kept :task status)
                                                 timing
                                                 (and closed (list (ical-time-property "COMPLETED"
-                                                                                      (let ((u (zone-universal-time zone (ts-local closed))))
+                                                                                      (let ((u (zone-universal-time zone
+                                                                                                                    (ts-local closed))))
                                                                                         (universal-ical-time u)))))))))))
           ((or (entry-property entry *rule-property*) (and (null times) (agreed-members agreed uid)))
            ;; times written out, or none written (all before the days written): the
@@ -699,7 +783,10 @@ yet (NEW-UID); time stamp (DTSTAMP) is NOW."
                                           (changed-properties (ical-component-properties kept)
                                                               (append (list (make-ical-property "UID" uid))
                                                                       (said kept :same (status-of kept))
-                                                                      (remove-if-not (lambda (p) (member (ical-property-name p) *timing-properties* :test #'string-equal))
+                                                                      (remove-if-not (lambda (p)
+                                                                                       (member (ical-property-name p)
+                                                                                               *timing-properties*
+                                                                                               :test #'string-equal))
                                                                                      (ical-component-properties kept)))))
                      (rest members)))))
           (t
@@ -710,26 +797,49 @@ yet (NEW-UID); time stamp (DTSTAMP) is NOW."
                  for members = (agreed-members agreed this-uid)
                  for kept = (first members)
                  for notes-here = (eq text noted)
-                 for hold = (and kept (agreed-times-hold-p members agreed zone text (and notes-here cancelled) (and notes-here moved)))
-                 for timing = (cond (hold (remove-if-not (lambda (p) (member (ical-property-name p) *timing-properties* :test #'string-equal))
+                 for hold = (and kept
+                                 (agreed-times-hold-p members
+                                                      agreed
+                                                      zone
+                                                      text
+                                                      (and notes-here cancelled)
+                                                      (and notes-here moved)))
+                 for timing = (cond (hold (remove-if-not (lambda (p)
+                                                           (member (ical-property-name p)
+                                                                   *timing-properties*
+                                                                   :test #'string-equal))
                                                          (ical-component-properties kept)))
                                     ((org-rule-text-p text)
                                      (timing-of-rule text zone today
-                                                     (let ((s (and kept (ical-property-time (ical-property-of kept "DTSTART")))))
+                                                     (let ((s (and kept
+                                                                   (ical-property-time (ical-property-of kept "DTSTART")))))
                                                        (and s (ical-time-day s)))))
                                     (t (timing-of-stamp text zone)))
                  when timing
-                   nconc (let* ((start (ical-property-time (find "DTSTART" timing :key #'ical-property-name :test #'string-equal)))
-                                (end (ical-property-time (find "DTEND" timing :key #'ical-property-name :test #'string-equal)))
+                   nconc (let* ((start (ical-property-time (find "DTSTART"
+                                                                 timing
+                                                                 :key #'ical-property-name
+                                                                 :test #'string-equal)))
+                                (end (ical-property-time (find "DTEND"
+                                                               timing
+                                                               :key #'ical-property-name
+                                                               :test #'string-equal)))
                                 (length (and start end (- (ical-local end) (ical-local start))))
                                 (exdates (and notes-here (not hold) cancelled
                                               (list (let ((times (mapcar (lambda (o) (occurrence-time o start zone)) cancelled)))
-                                                      (make-ical-property "EXDATE" (format nil "~{~a~^,~}" (mapcar #'ical-time-text times))
+                                                      (make-ical-property "EXDATE"
+                                                                          (format nil
+                                                                                  "~{~a~^,~}"
+                                                                                  (mapcar #'ical-time-text times))
                                                                           (ical-property-parameters (ical-time-property "EXDATE" (first times))))))))
                                 (master (make-ical-component (if kept (ical-component-name kept) "VEVENT")
-                                                             (changed-properties (if kept (ical-component-properties kept) '())
+                                                             (changed-properties (if kept
+                                                                                     (ical-component-properties kept)
+                                                                                     '())
                                                                                  (append (list (make-ical-property "UID" this-uid))
-                                                                                         (said kept (if hold :same :changed) (status-of kept))
+                                                                                         (said kept
+                                                                                               (if hold :same :changed)
+                                                                                               (status-of kept))
                                                                                          timing exdates)))))
                            (cons master
                                  (if hold
@@ -751,7 +861,9 @@ yet (NEW-UID); time stamp (DTSTAMP) is NOW."
                                                                                                         (if (ical-time-date-p new)
                                                                                                             (make-ical-time (+ (ical-time-day new) (floor length 86400)))
                                                                                                             (let ((l (+ (ical-local new) length)))
-                                                                                                              (make-ical-time (floor l 86400) (mod l 86400) (ical-time-zone new))))))))))))))))))))))
+                                                                                                              (make-ical-time (floor l 86400)
+                                                                                                                              (mod l 86400)
+                                                                                                                              (ical-time-zone new))))))))))))))))))))))
 
 (defun entry-calendar (entry &rest arguments &key agreed uid zone now)
   "A calendar (VCALENDAR) of what ENTRY says (ENTRY-COMPONENTS, with AGREED, the unique identifier (UID), ZONE

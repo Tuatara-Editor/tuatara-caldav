@@ -2,7 +2,7 @@
 # tools/test.sh --- Run the package's tests.
 # Copyright (C) 2026 Michael A Jones.  GPL-3.0-or-later; see LICENSE.
 # Run this package's tests against a Tuatara source tree: $TUATARA_SOURCE,
-# else tuatara beside this repository or beside the folder it is in. In
+# else tuatara beside this repository or beside the directory it is in. In
 # Tuatara's toolbox when there is one, as Tuatara's own tests run.
 # Usage: tools/test.sh
 set -euo pipefail

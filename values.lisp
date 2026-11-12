@@ -135,7 +135,14 @@ identifier (TZID) for a time in a named zone."
 (defun read-ical-duration (value)
   "VALUE, a duration as written (P1D, PT1H30M, -P1W), as two values: the days
 it counts (weeks seven each), and the seconds. NIL when VALUE is no duration."
-  (let* ((value (string-trim " " value)) (end (length value)) (at 0) (sign 1) (days 0) (seconds 0) (any nil) (timep nil))
+  (let* ((value (string-trim " " value))
+         (end (length value))
+         (at 0)
+         (sign 1)
+         (days 0)
+         (seconds 0)
+         (any nil)
+         (timep nil))
     (when (and (< at end) (find (char value at) "+-"))
       (when (char= (char value at) #\-) (setf sign -1))
       (incf at))
@@ -172,7 +179,13 @@ of UTC; NIL when it is none."
   (let* ((value (string-trim " " value))
          (hours (digits-at value 1 2)) (minutes (digits-at value 3 2))
          (seconds (if (= (length value) 7) (digits-at value 5 2) 0)))
-    (when (and (member (length value) '(5 7)) (find (char value 0) "+-") hours minutes seconds (<= minutes 59) (<= seconds 59))
+    (when (and (member (length value) '(5 7))
+               (find (char value 0) "+-")
+               hours
+               minutes
+               seconds
+               (<= minutes 59)
+               (<= seconds 59))
       (* (if (char= (char value 0) #\-) -1 1) (+ (* 3600 hours) (* 60 minutes) seconds)))))
 
 (defun utc-offset-text (offset)
@@ -183,8 +196,14 @@ of UTC; NIL when it is none."
 
 ;;; Rules of recurrence
 
-(defstruct (ical-recur (:constructor make-ical-recur (freq &key (interval 1) count until by-second by-minute by-hour by-day
-                                                              by-month-day by-year-day by-week-no by-month by-set-pos (week-start 1))))
+(defstruct (ical-recur (:constructor make-ical-recur
+                                     (freq &key (interval 1) count until by-second by-minute by-hour by-day
+                                                              by-month-day
+                                                           by-year-day
+                                                           by-week-no
+                                                           by-month
+                                                           by-set-pos
+                                                           (week-start 1))))
   "A rule of recurrence (RRULE): frequency (FREQ), one of :SECONDLY :MINUTELY :HOURLY
 :DAILY :WEEKLY :MONTHLY :YEARLY; every INTERVALth; COUNT times in all or
 UNTIL an ICAL-TIME, or neither; the BY- parts, lists of numbers, BY-DAY a
@@ -238,8 +257,10 @@ rule, or has a part out of its range. Parts it does not know are left out."
                      (when (eq value :bad) (return-from read-ical-recur nil))
                      (setf (getf parts name) value)))
               (cond ((string= key "FREQ") (setf freq (cdr (assoc text *recur-frequencies* :test #'string-equal))))
-                    ((string= key "INTERVAL") (let ((n (ignore-errors (parse-integer text)))) (put :interval (if (and n (plusp n)) n :bad))))
-                    ((string= key "COUNT") (let ((n (ignore-errors (parse-integer text)))) (put :count (if (and n (plusp n)) n :bad))))
+                    ((string= key "INTERVAL")
+                     (let ((n (ignore-errors (parse-integer text)))) (put :interval (if (and n (plusp n)) n :bad))))
+                    ((string= key "COUNT")
+                     (let ((n (ignore-errors (parse-integer text)))) (put :count (if (and n (plusp n)) n :bad))))
                     ((string= key "UNTIL") (put :until (or (read-ical-time text zone) :bad)))
                     ((string= key "BYSECOND") (put :by-second (numbers text 0 60 :negative nil)))
                     ((string= key "BYMINUTE") (put :by-minute (numbers text 0 59 :negative nil)))
@@ -259,7 +280,8 @@ rule, or has a part out of its range. Parts it does not know are left out."
                                 (let ((days (loop for word in words
                                                   for size = (length word)
                                                   for day = (and (>= size 2) (weekday (subseq word (- size 2))))
-                                                  for ordinal = (and (> size 2) (ignore-errors (parse-integer word :end (- size 2))))
+                                                  for ordinal = (and (> size 2)
+                                                                     (ignore-errors (parse-integer word :end (- size 2))))
                                                   if (and day (or (= size 2) (and ordinal (<= 1 (abs ordinal) 53))))
                                                     collect (cons (and (> size 2) ordinal) day)
                                                   else do (return :bad))))
@@ -270,15 +292,22 @@ rule, or has a part out of its range. Parts it does not know are left out."
 
 (defun ical-recur-text (recur)
   "RECUR, an ICAL-RECUR, as a rule of recurrence is written."
-  (format nil "FREQ=~a~@[;INTERVAL=~d~]~@[;COUNT=~d~]~@[;UNTIL=~a~]~@[;BYMONTH=~{~d~^,~}~]~@[;BYWEEKNO=~{~d~^,~}~]~@[;BYYEARDAY=~{~d~^,~}~]~@[;BYMONTHDAY=~{~d~^,~}~]~@[;BYDAY=~{~a~^,~}~]~@[;BYHOUR=~{~d~^,~}~]~@[;BYMINUTE=~{~d~^,~}~]~@[;BYSECOND=~{~d~^,~}~]~@[;BYSETPOS=~{~d~^,~}~]~@[;WKST=~a~]"
+  (format nil
+          "FREQ=~a~@[;INTERVAL=~d~]~@[;COUNT=~d~]~@[;UNTIL=~a~]~@[;BYMONTH=~{~d~^,~}~]~@[;BYWEEKNO=~{~d~^,~}~]~@[;BYYEARDAY=~{~d~^,~}~]~@[;BYMONTHDAY=~{~d~^,~}~]~@[;BYDAY=~{~a~^,~}~]~@[;BYHOUR=~{~d~^,~}~]~@[;BYMINUTE=~{~d~^,~}~]~@[;BYSECOND=~{~d~^,~}~]~@[;BYSETPOS=~{~d~^,~}~]~@[;WKST=~a~]"
           (car (rassoc (ical-recur-freq recur) *recur-frequencies*))
           (and (/= 1 (ical-recur-interval recur)) (ical-recur-interval recur))
           (ical-recur-count recur)
           (and (ical-recur-until recur) (ical-time-text (ical-recur-until recur)))
-          (ical-recur-by-month recur) (ical-recur-by-week-no recur) (ical-recur-by-year-day recur) (ical-recur-by-month-day recur)
+          (ical-recur-by-month recur)
+          (ical-recur-by-week-no recur)
+          (ical-recur-by-year-day recur)
+          (ical-recur-by-month-day recur)
           (loop for (ordinal . day) in (ical-recur-by-day recur)
                 collect (format nil "~@[~d~]~a" ordinal (aref *recur-weekdays* day)))
-          (ical-recur-by-hour recur) (ical-recur-by-minute recur) (ical-recur-by-second recur) (ical-recur-by-set-pos recur)
+          (ical-recur-by-hour recur)
+          (ical-recur-by-minute recur)
+          (ical-recur-by-second recur)
+          (ical-recur-by-set-pos recur)
           (and (/= 1 (ical-recur-week-start recur)) (aref *recur-weekdays* (ical-recur-week-start recur)))))
 
 (setf (documentation 'make-ical-time 'function) "An ICAL-TIME of DAY (a day number), SECOND into it, NIL
@@ -286,20 +315,29 @@ for a date alone, and ZONE: :UTC, the name in a time zone identifier (TZID), or 
       (documentation 'ical-time-p 'function) "True when the object given is an ICAL-TIME."
       (documentation 'ical-time-day 'function) "The day of an ICAL-TIME, a day number as DAY-NUMBER counts."
       (documentation 'ical-time-second 'function) "The seconds into its day of an ICAL-TIME, or NIL for a date alone."
-      (documentation 'ical-time-zone 'function) "The zone of an ICAL-TIME: :UTC, a TZID's name, or NIL for a floating time."
-      (documentation 'make-ical-recur 'function) "An ICAL-RECUR of FREQ and the parts given by their keywords, each as ICAL-RECUR says."
+      (documentation 'ical-time-zone 'function)
+      "The zone of an ICAL-TIME: :UTC, a TZID's name, or NIL for a floating time."
+      (documentation 'make-ical-recur 'function)
+      "An ICAL-RECUR of FREQ and the parts given by their keywords, each as ICAL-RECUR says."
       (documentation 'ical-recur-p 'function) "True when the object given is an ICAL-RECUR."
-      (documentation 'ical-recur-freq 'function) "A rule's frequency: :SECONDLY, :MINUTELY, :HOURLY, :DAILY, :WEEKLY, :MONTHLY or :YEARLY."
-      (documentation 'ical-recur-interval 'function) "Which of a rule's periods it gives times in: every one for 1, every other for 2."
+      (documentation 'ical-recur-freq 'function)
+      "A rule's frequency: :SECONDLY, :MINUTELY, :HOURLY, :DAILY, :WEEKLY, :MONTHLY or :YEARLY."
+      (documentation 'ical-recur-interval 'function)
+      "Which of a rule's periods it gives times in: every one for 1, every other for 2."
       (documentation 'ical-recur-count 'function) "How many times a rule gives in all, the first time counted, or NIL."
       (documentation 'ical-recur-until 'function) "The last time a rule may give, an ICAL-TIME, or NIL."
       (documentation 'ical-recur-by-second 'function) "The seconds of the minute a rule's BYSECOND gives, or NIL."
       (documentation 'ical-recur-by-minute 'function) "The minutes of the hour a rule's BYMINUTE gives, or NIL."
       (documentation 'ical-recur-by-hour 'function) "The hours of the day a rule's BYHOUR gives, or NIL."
-      (documentation 'ical-recur-by-day 'function) "The weekdays a rule's BYDAY gives, a list of (ORDINAL . WEEKDAY), or NIL."
-      (documentation 'ical-recur-by-month-day 'function) "The days of the month a rule's BYMONTHDAY gives, below 0 from the month's end, or NIL."
-      (documentation 'ical-recur-by-year-day 'function) "The days of the year a rule's BYYEARDAY gives, below 0 from the year's end, or NIL."
-      (documentation 'ical-recur-by-week-no 'function) "The weeks of the year a rule's BYWEEKNO gives, below 0 from the year's end, or NIL."
+      (documentation 'ical-recur-by-day 'function)
+      "The weekdays a rule's BYDAY gives, a list of (ORDINAL . WEEKDAY), or NIL."
+      (documentation 'ical-recur-by-month-day 'function)
+      "The days of the month a rule's BYMONTHDAY gives, below 0 from the month's end, or NIL."
+      (documentation 'ical-recur-by-year-day 'function)
+      "The days of the year a rule's BYYEARDAY gives, below 0 from the year's end, or NIL."
+      (documentation 'ical-recur-by-week-no 'function)
+      "The weeks of the year a rule's BYWEEKNO gives, below 0 from the year's end, or NIL."
       (documentation 'ical-recur-by-month 'function) "The months a rule's BYMONTH gives, or NIL."
-      (documentation 'ical-recur-by-set-pos 'function) "Which of each period's times a rule's BYSETPOS keeps, below 0 from the last, or NIL."
+      (documentation 'ical-recur-by-set-pos 'function)
+      "Which of each period's times a rule's BYSETPOS keeps, below 0 from the last, or NIL."
       (documentation 'ical-recur-week-start 'function) "The weekday a rule's weeks begin on, 0 for Sunday.")

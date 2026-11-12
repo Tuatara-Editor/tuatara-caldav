@@ -204,7 +204,7 @@ a `:password-command` in step 4:
 ```
 
 At each sync Tuatara runs the command, no shell (a word beginning with `~/`
-is a path in your home folder), and takes the first line it prints as the
+is a path in your home directory), and takes the first line it prints as the
 password; gpg-agent asks for the file's passphrase in a window of its own,
 and remembers it a while (10 minutes as standard, each use counting again,
 so syncing every minute keeps it remembered up to gpg-agent's limit, two
@@ -248,16 +248,16 @@ the agenda) says the names Tuatara finds:
 It syncs on its own: a few seconds after Tuatara starts, then every minute,
 in the background, saying nothing unless something changed or failed (a
 failure is told once, not again every minute while it lasts). Set how often
-with `*caldav-minutes*`, or `nil` to sync only when asked:
+with `*caldav-minutes*`, or `nil` (or 0) to sync only when asked:
 
 ```lisp
 (setf *caldav-minutes* 5)
 ```
 
-To sync at once, open an Org file or the agenda and press `C-c s s`. The first sync writes
-`agenda-caldav.org` beside your agenda file, a heading for each calendar,
-and the agenda shows its events. Press `C-c s s` whenever you want to sync
-again.
+To sync at once, open an Org file or the agenda and press `C-c s s`. The first
+sync writes `agenda-caldav.org` beside your agenda file, a heading for each
+calendar, and the agenda shows its events. Press `C-c s s` whenever you want to
+sync again.
 
 Only `agenda-caldav.org` is synced: your own agenda file and notes are never
 read for it nor changed. To keep the calendars in your agenda file instead,
@@ -293,18 +293,19 @@ sync that failed is also told as a notification, on the desktop and in
   name, or for a different one than the init file says.
 - **refused the name and password**: the password in the keyring is not
   the server's (for EteSync, the `manage get` one, not your EteSync one).
-- **not reached: Could not connect to server**: the server is not running (`etesync-dav`, or
-  `sudo systemctl status radicale`), or Tailscale is off on this device
-  (`tailscale status`).
+- **not reached: Could not connect to server**: the server is not running
+  (`etesync-dav`, or `sudo systemctl status radicale`), or Tailscale is off on
+  this device (`tailscale status`).
 - **is not https, nor on this machine**: an `http://` address of another
   computer. Use its `https://...ts.net/` address (step 2B.7).
 - **says no calendars**: make a calendar first (step 2B.4, or in EteSync).
 
 ### Why this is safe
 
-- Your password is kept by the desktop's keyring, or encrypted by GnuPG,
-  given to curl on its standard input, wiped from memory after each sync, never on its command line or in a file, and sent only to
-  the server's own address, whatever the server's answers name.
+- Your password is kept by the desktop's keyring, or encrypted by GnuPG, given
+  to curl on its standard input, wiped from memory after each sync, never on its
+  command line or in a file, and sent only to the server's own address, whatever
+  the server's answers name.
 - Tuatara talks https to every other computer, and plain http only to
   this one; with Tailscale the calendars travel inside your own private,
   encrypted network as well.
@@ -387,12 +388,12 @@ is left as it is.
 
 ## Accounts
 
-Any CalDAV server: Radicale, or EteSync through its bridge, etesync-dav,
-which serves your EteSync calendars at `http://localhost:37358/`, keeping
-them encrypted end to end. The password is kept in the desktop's keyring,
-never in the init file. The address is the server's own; the calendars are found from it as CalDAV
-says (the principal, its calendar home), each a heading of its own in the
-calendars' file, its address in the `CALENDAR` property.
+Any CalDAV server: Radicale, or EteSync through its bridge, etesync-dav, which
+serves your EteSync calendars at `http://localhost:37358/`, keeping them
+encrypted end to end. The password is kept in the desktop's keyring, never in
+the init file. The address is the server's own; the calendars are found from it
+as CalDAV says (the principal, its calendar home), each a heading of its own in
+the calendars' file, its address in the `CALENDAR` property.
 
 ```lisp
 (setf *caldav-accounts*
@@ -500,7 +501,7 @@ tools/test.sh
 ```
 
 runs its tests against a Tuatara source tree: `../tuatara` beside this
-repository, or `../../tuatara` beside the folder it is in, unless
+repository, or `../../tuatara` beside the directory it is in, unless
 `TUATARA_SOURCE` names another. How a package is laid out and which of
 Tuatara's names it may use are in Tuatara's
 [HACKING.org](https://github.com/Tuatara-Editor/tuatara/blob/main/HACKING.org);

@@ -13,11 +13,16 @@
   ((text :initarg :text :reader icalendar-error-text)
    (line :initarg :line :initform nil :reader icalendar-error-line))
   (:report (lambda (condition stream)
-             (format stream "Not a calendar file: ~a~@[, at line ~d~]" (icalendar-error-text condition) (icalendar-error-line condition))))
-  (:documentation "Text read as a calendar file that is not one, or is past the bounds: what was wrong, and on which line."))
+             (format stream
+                     "Not a calendar file: ~a~@[, at line ~d~]"
+                     (icalendar-error-text condition)
+                     (icalendar-error-line condition))))
+  (:documentation "Text read as a calendar file that is not one, or is past the bounds: what was wrong,
+and on which line."))
 
 (setf (documentation 'icalendar-error-text 'function) "What was wrong with the text read as a calendar file."
-      (documentation 'icalendar-error-line 'function) "The line of the text read as a calendar file where it went wrong, counting from 1, or NIL.")
+      (documentation 'icalendar-error-line 'function)
+      "The line of the text read as a calendar file where it went wrong, counting from 1, or NIL.")
 
 (defparameter *icalendar-largest* (* 16 1024 1024)
   "The most characters of a calendar file read: a larger one is refused.")
@@ -106,7 +111,8 @@ when it has none."
         (loop while (and (< at end) (char= (char text at) #\;))
               do (incf at)
                  (let ((parameter (name)))
-                   (unless (and (< at end) (char= (char text at) #\=)) (fail (format nil "parameter ~a with no =" parameter)))
+                   (unless (and (< at end) (char= (char text at) #\=))
+                     (fail (format nil "parameter ~a with no =" parameter)))
                    (incf at)
                    (let ((values (list (parameter-value))))
                      (loop while (and (< at end) (char= (char text at) #\,))
@@ -152,12 +158,15 @@ components deeper than *ICALENDAR-DEEPEST*."
        (let ((property (read-content-line line number)))
          (cond ((string= (ical-property-name property) "BEGIN")
                 (when (>= (length open) *icalendar-deepest*)
-                  (error 'icalendar-error :text (format nil "components deeper than ~d" *icalendar-deepest*) :line number))
+                  (error 'icalendar-error
+                         :text (format nil "components deeper than ~d" *icalendar-deepest*)
+                         :line number))
                 (push (make-ical-component (string-upcase (ical-property-value property))) open))
                ((string= (ical-property-name property) "END")
                 (let ((component (pop open)))
                   (unless (and component (string-equal (ical-component-name component) (ical-property-value property)))
-                    (error 'icalendar-error :text (format nil "END:~a closes ~:[nothing~;~:*~a~]" (ical-property-value property)
+                    (error 'icalendar-error
+                           :text (format nil "END:~a closes ~:[nothing~;~:*~a~]" (ical-property-value property)
                                                           (and component (ical-component-name component)))
                                             :line number))
                   (setf (ical-component-properties component) (nreverse (ical-component-properties component))
@@ -166,7 +175,9 @@ components deeper than *ICALENDAR-DEEPEST*."
                       (push component (ical-component-components (first open)))
                       (push component top))))
                (open (push property (ical-component-properties (first open))))
-               (t (error 'icalendar-error :text (format nil "~a outside any component" (ical-property-name property)) :line number)))))
+               (t (error 'icalendar-error
+                         :text (format nil "~a outside any component" (ical-property-name property))
+                         :line number)))))
      text)
     (when open
       (error 'icalendar-error :text (format nil "~a not ended" (ical-component-name (first open))) :line last-line))
@@ -231,13 +242,17 @@ and are folded at 75 octets."
         (all stream)
         (with-output-to-string (out) (all out)))))
 
-(setf (documentation 'make-ical-property 'function) "A property of a component named NAME, its VALUE as written and its PARAMETERS, a list of (NAME . VALUES)."
+(setf (documentation 'make-ical-property 'function)
+      "A property of a component named NAME, its VALUE as written and its PARAMETERS, a list of (NAME . VALUES)."
       (documentation 'ical-property-p 'function) "True when the object given is an ICAL-PROPERTY."
       (documentation 'ical-property-name 'function) "A property's name in capitals, such as start (DTSTART)."
       (documentation 'ical-property-value 'function) "A property's value as written, escapes kept."
-      (documentation 'ical-property-parameters 'function) "A property's parameters, a list of (NAME . VALUES), VALUES a list of strings."
-      (documentation 'make-ical-component 'function) "A component named NAME, such as event (VEVENT), of PROPERTIES and the COMPONENTS within it."
+      (documentation 'ical-property-parameters 'function)
+      "A property's parameters, a list of (NAME . VALUES), VALUES a list of strings."
+      (documentation 'make-ical-component 'function)
+      "A component named NAME, such as event (VEVENT), of PROPERTIES and the COMPONENTS within it."
       (documentation 'ical-component-p 'function) "True when the object given is an ICAL-COMPONENT."
-      (documentation 'ical-component-name 'function) "A component's name in capitals, such as calendar (VCALENDAR) or event (VEVENT)."
+      (documentation 'ical-component-name 'function)
+      "A component's name in capitals, such as calendar (VCALENDAR) or event (VEVENT)."
       (documentation 'ical-component-properties 'function) "A component's properties, in the order written."
       (documentation 'ical-component-components 'function) "The components within a component, in the order written.")

@@ -142,14 +142,21 @@ its STATUS says so."
                             (when id (setf (gethash (funcall local-of id) changed) c))))
                         (setf instances
                               (if rules
-                                  (loop for r in rules nconc (recur-expand r start-local window-from window-to :universal universal :date date))
+                                  (loop for r in rules
+                                        nconc (recur-expand r
+                                                            start-local
+                                                            window-from
+                                                            window-to
+                                                            :universal universal
+                                                            :date date))
                                   (let ((u (funcall universal start-local)))
                                     (and (>= u window-from) (< u window-to) (list start-local)))))
                         (dolist (p (ical-properties-of master "RDATE"))
                           (dolist (time (ical-property-times p))
                             (let* ((local (funcall local-of time)) (u (funcall universal local)))
                               (when (and (>= u window-from) (< u window-to)) (push local instances)))))
-                        ;; in order, each once, those left out taken out: by sorting and a table, never list against list
+                        ;; in order, each once, those left out taken out: by sorting and a table,
+                        ;; never list against list
                         (setf instances (loop for (local . more) on (sort instances #'<)
                                               unless (or (gethash local excluded) (eql local (first more)))
                                                 collect local))
@@ -160,7 +167,12 @@ its STATUS says so."
                             (if change
                                 (progn (single change (and (or rules (ical-property-of master "RDATE")) id))
                                        (remhash local changed))
-                                (add master local length date start-zone (and (or rules (ical-property-of master "RDATE")) id)))))
+                                (add master
+                                     local
+                                     length
+                                     date
+                                     start-zone
+                                     (and (or rules (ical-property-of master "RDATE")) id)))))
                         ;; changes moved here from occurrences outside the times asked for
                         (maphash (lambda (local c)
                                    (unless (gethash local excluded)
@@ -171,8 +183,12 @@ its STATUS says so."
                                          (ical-occurrence-start o))))))
 
 (setf (documentation 'ical-occurrence-p 'function) "True when the object given is an ICAL-OCCURRENCE."
-      (documentation 'ical-occurrence-start 'function) "When an occurrence begins: a universal time, or a day number for one of whole days."
-      (documentation 'ical-occurrence-end 'function) "When an occurrence ends: a universal time, or for one of whole days the day after its last."
+      (documentation 'ical-occurrence-start 'function)
+      "When an occurrence begins: a universal time, or a day number for one of whole days."
+      (documentation 'ical-occurrence-end 'function)
+      "When an occurrence ends: a universal time, or for one of whole days the day after its last."
       (documentation 'ical-occurrence-whole-day 'function) "True when an occurrence is of whole days."
-      (documentation 'ical-occurrence-component 'function) "The component an occurrence comes from: the one changing it, for an occurrence changed."
-      (documentation 'ical-occurrence-recurrence-id 'function) "An occurrence's time as its rule gave it, an ICAL-TIME, or NIL for a component that does not recur.")
+      (documentation 'ical-occurrence-component 'function)
+      "The component an occurrence comes from: the one changing it, for an occurrence changed."
+      (documentation 'ical-occurrence-recurrence-id 'function)
+      "An occurrence's time as its rule gave it, an ICAL-TIME, or NIL for a component that does not recur.")

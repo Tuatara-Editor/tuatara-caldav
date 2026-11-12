@@ -61,7 +61,12 @@ it has a scheme, on BASE's host when it begins with /, else beside BASE's path."
         (t (multiple-value-bind (scheme host path) (url-parts base)
              (if (uiop:string-prefix-p "/" href)
                  (format nil "~a://~a~a" scheme host href)
-                 (format nil "~a://~a~a~a" scheme host (subseq path 0 (1+ (or (position #\/ path :from-end t) -1))) href))))))
+                 (format nil
+                         "~a://~a~a~a"
+                         scheme
+                         host
+                         (subseq path 0 (1+ (or (position #\/ path :from-end t) -1)))
+                         href))))))
 
 (defun url-path (url)
   "The path of the web address (URL), as a server names its resources."
@@ -96,11 +101,14 @@ input: three values, the answer's status, its headers and its body."
   (let ((curl (find-program "curl")))
     (unless curl (caldav-fail "curl is not installed: syncing calendars needs it"))
     ;; a line break would end curl's line of the name and password and begin another
-    (when (find-if (lambda (c) (member c '(#\Newline #\Return #\Nul))) (concatenate 'string (or user "") (or password "")))
+    (when (find-if (lambda (c) (member c '(#\Newline #\Return #\Nul)))
+                   (concatenate 'string (or user "") (or password "")))
       (caldav-fail "The name or password for ~a holds a line break: not sent" url))
-    (let ((folder (new-private-folder (private-cache-directory "caldav/requests/") :hold nil)))
+    (let ((directory (new-private-directory (private-cache-directory "caldav/requests/") :hold nil)))
       (unwind-protect
-           (let ((body-file (path-join folder "body")) (head-file (path-join folder "head")) (out-file (path-join folder "out")))
+           (let ((body-file (path-join directory "body"))
+                 (head-file (path-join directory "head"))
+                 (out-file (path-join directory "out")))
              (when body (replace-file body-file body :mode #o600))
              (multiple-value-bind (said ok)
                  (program-output (append (list curl "--disable" "--silent" "--show-error" "--proto" "=https,http"
@@ -108,10 +116,15 @@ input: three values, the answer's status, its headers and its body."
                                                "--max-filesize" (princ-to-string *largest-answer*)
                                                "--request" method "--dump-header" head-file "--output" out-file
                                                "--write-out" (format nil "%{http_code}~%%{errormsg}") "--config" "-")
-                                         (loop for (name . value) in headers append (list "--header" (format nil "~a: ~a" name (one-line value))))
+                                         (loop for (name . value) in headers
+                                               append (list "--header" (format nil "~a: ~a" name (one-line value))))
                                          (and body (list "--data-binary" (concatenate 'string "@" body-file)))
                                          (list "--" url))
-                                 :input (if user (format nil "user = ~a~%" (curl-quoted (format nil "~a:~a" user (or password "")))) "")
+                                 :input (if user
+                                            (format nil
+                                                    "user = ~a~%"
+                                                    (curl-quoted (format nil "~a:~a" user (or password ""))))
+                                            "")
                                  :seconds (+ 10 *request-seconds*))
                ;; what curl wrote out: the answer's status, and on a line of its own why it failed
                (let* ((lines (uiop:split-string (or said "") :separator (string #\Newline)))
@@ -126,9 +139,10 @@ input: three values, the answer's status, its headers and its body."
                          (curl-headers (or (ignore-errors (file-text head-file :limit *largest-answer*)) ""))
                          (if (path-kind out-file)
                              (handler-case (octets-string (file-octets out-file :limit *largest-answer*))
-                               (file-system-error () (caldav-fail "~a answered more than ~:d octets" url *largest-answer*)))
+                               (file-system-error ()
+                                                  (caldav-fail "~a answered more than ~:d octets" url *largest-answer*)))
                              "")))))
-        (ignore-errors (delete-tree folder))))))
+        (ignore-errors (delete-tree directory))))))
 
 (defun request (account method url &key headers body (redirects *most-redirects*))
   "Make the request METHOD to web address (URL) for ACCOUNT, as *TRANSPORT* does, following
@@ -178,11 +192,13 @@ status is not 2xx left out; and the answer's root element as a second value."
                     (list :href (and href (element-text href))
                           :status (and status (status-number (xml-all-text status)))
                           :props (loop for propstat in (xml-local-children response "propstat")
-                                       for code = (let ((s (first (xml-local-children propstat "status")))) (and s (status-number (xml-all-text s))))
+                                       for code = (let ((s (first (xml-local-children propstat "status"))))
+                                                    (and s (status-number (xml-all-text s))))
                                        when (ok-status-p code)
                                          nconc (loop for prop in (xml-local-children propstat "prop")
                                                      nconc (loop for child in (xml-children prop)
-                                                                 when (consp child) collect (cons (xml-local-name child) child)))))))
+                                                                 when (consp child)
+                                                                   collect (cons (xml-local-name child) child)))))))
      root)))
 
 (defun status-number (line)
@@ -221,7 +237,7 @@ status is not 2xx left out; and the answer's root element as a second value."
   "<?xml version=\"1.0\" encoding=\"utf-8\"?>
 <d:propfind xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\" xmlns:cs=\"http://calendarserver.org/ns/\">
 <d:prop><d:resourcetype/><d:displayname/><c:supported-calendar-component-set/><cs:getctag/><d:sync-token/></d:prop></d:propfind>"
-  "The request for the calendars in a folder, their names and what they hold.")
+  "The request for the calendars in a directory, their names and what they hold.")
 
 (defun propfind (account url body depth)
   "The responses to a property find (PROPFIND) of BODY at web address (URL), DEPTH deep (0 or 1), for
@@ -271,7 +287,8 @@ gave them."
             collect (let* ((url (url-joined at (getf response :href)))
                            (path (string-right-trim "/" (url-path url))))
                       (list :url url
-                            :name (or (let ((name (prop-text response "displayname"))) (and name (plusp (length name)) (one-line name)))
+                            :name (or (let ((name (prop-text response "displayname")))
+                                        (and name (plusp (length name)) (one-line name)))
                                       (subseq path (1+ (or (position #\/ path :from-end t) -1))))
                             :ctag (prop-text response "getctag")
                             :sync-token (prop-text response "sync-token"))))))
@@ -298,7 +315,8 @@ refuses this one; NIL for the token when the server gives an empty one."
     (if (eql status 207)
         (multiple-value-bind (responses root) (multistatus-responses answer)
          (let ((new-token (let* ((element (first (xml-local-children root "sync-token")))
-                                 (text (and element (string-trim '(#\Space #\Tab #\Newline #\Return) (element-text element)))))
+                                 (text (and element
+                                            (string-trim '(#\Space #\Tab #\Newline #\Return) (element-text element)))))
                             (cond ((null element) :none)
                                   ((plusp (length text)) text))))
                (changed '()) (gone '()))
@@ -318,7 +336,9 @@ server that keeps no sync tokens."
 <d:propfind xmlns:d=\"DAV:\"><d:prop><d:getetag/><d:resourcetype/></d:prop></d:propfind>" 1)
         for url = (url-joined (getf calendar :url) (getf response :href))
         for etag = (prop-text response "getetag")
-        when (and etag (not (string= (string-right-trim "/" (url-path url)) (string-right-trim "/" (url-path (getf calendar :url))))))
+        when (and etag
+                  (not (string= (string-right-trim "/" (url-path url))
+                                (string-right-trim "/" (url-path (getf calendar :url))))))
           collect (cons url etag)))
 
 (defun multiget-body (urls)
