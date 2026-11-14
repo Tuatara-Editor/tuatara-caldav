@@ -111,7 +111,8 @@ named *DESCRIPTION-NAME*, as DESCRIPTION-BLOCK wrote it from; NIL when it has no
   (multiple-value-bind (match groups)
       (cl-ppcre:scan-to-strings
        (format nil
-               "(?ims)^[ \\t]*#\\+name:[ \\t]*~a[ \\t]*\\n[ \\t]*#\\+begin_example[^\\n]*\\n(.*?)^[ \\t]*#\\+end_example"
+               "(?ims)^[ \\t]*#\\+name:[ \\t]*~a[ \\t]*\\n~
+                [ \\t]*#\\+begin_example[^\\n]*\\n(.*?)^[ \\t]*#\\+end_example"
                *description-name*)
        text :start start :end end)
     (when match
@@ -223,16 +224,21 @@ says it."
                (let ((days (plain-days)))
                  (cond ((null by-day) (values (cyclic interval start-day) t))
                        ((null days) nil)
-                       ((= interval 1) (format nil "memq (calendar-day-of-week date) '~a" days))
-                       (t (values (format nil "and (~a) (memq (calendar-day-of-week date) '~a)" (cyclic interval start-day) days) t))))))
+                       ((= interval 1) (format nil "memq (calendar-day-of-week date) ~a" (org-rule-part-text days)))
+                       (t (values (format nil "and (~a) (memq (calendar-day-of-week date) ~a)"
+                                          (cyclic interval start-day) (org-rule-part-text days))
+                                  t))))))
             (:weekly
              (when (and (null month-day) (null by-month))
                (let ((days (if by-day (plain-days) (list (weekday start-day)))))
                  (flet ((first-on (d) (+ start-day (mod (- d (weekday start-day)) 7))))
                    (cond ((null days) nil)
                          ((null (rest days)) (values (cyclic (* 7 interval) (first-on (first days))) t))
-                         ((= interval 1) (format nil "memq (calendar-day-of-week date) '~a" days))
-                         (t (values (format nil "or~{ (~a)~}" (mapcar (lambda (d) (cyclic (* 7 interval) (first-on d))) days)) t)))))))
+                         ((= interval 1)
+                          (format nil "memq (calendar-day-of-week date) ~a" (org-rule-part-text days)))
+                         (t (values (format nil "or~{ (~a)~}"
+                                            (mapcar (lambda (d) (cyclic (* 7 interval) (first-on d))) days))
+                                    t)))))))
             (:monthly
              (let ((months (repeat-months start-day interval)))
                (when (and months (null by-month))
@@ -240,9 +246,10 @@ says it."
                              (car (first by-day))
                              (<= (abs (car (first by-day))) 5)
                              (null month-day))
-                        (format nil "diary-float ~a ~d ~d" months (cdr (first by-day)) (car (first by-day))))
+                        (format nil "diary-float ~a ~d ~d"
+                                (org-rule-part-text months) (cdr (first by-day)) (car (first by-day))))
                        ((and (null by-day) (member month-day (list nil (list date)) :test #'equal))
-                        (format nil "diary-date ~a ~d t" months date))))))
+                        (format nil "diary-date ~a ~d t" (org-rule-part-text months) date))))))
             (:yearly
              (cond ((and (= interval 1) (= (length by-month) 1) (= (length by-day) 1) (car (first by-day))
                          (<= (abs (car (first by-day))) 5) (null month-day))
@@ -250,8 +257,9 @@ says it."
                    ((and (null by-day) (member by-month (list nil (list month)) :test #'equal)
                          (member month-day (list nil (list date)) :test #'equal))
                     (cond ((= interval 1) (format nil "diary-anniversary ~d ~d" month date))
-                          (last (format nil "diary-date ~d ~d '~a" month date
-                                        (loop for y from year to (day-date last) by interval collect y)))))))))))))
+                          (last (format nil "diary-date ~d ~d ~a" month date
+                                        (org-rule-part-text
+                                         (loop for y from year to (day-date last) by interval collect y))))))))))))))
 
 (defun rule-last-day (recur start-local whole-day zones zone)
   "The day number of the last time of RECUR, a rule beginning at the local
@@ -259,10 +267,12 @@ time START-LOCAL, on ZONE's clock, by its UNTIL or COUNT; NIL when it has
 neither, or more times than are worked out."
   (cond ((ical-recur-until recur)
          (let ((until (ical-recur-until recur)))
-           (floor (if (or whole-day (ical-time-date-p until)) (ical-local until) (local-in until zone zones zone)) 86400)))
+           (floor (if (or whole-day (ical-time-date-p until)) (ical-local until) (local-in until zone zones zone))
+                  86400)))
         ((ical-recur-count recur)
          (when (<= (ical-recur-count recur) *icalendar-most-occurrences*)
-           (let ((times (recur-expand recur start-local start-local (+ start-local (* 86400 366 400)) :date whole-day)))
+           (let ((times (recur-expand recur start-local start-local (+ start-local (* 86400 366 400))
+                                      :date whole-day)))
              (and times (= (length times) (ical-recur-count recur))
                   (floor (car (last times)) 86400)))))))
 
@@ -288,25 +298,25 @@ time NOW; NIL when Org cannot say them."
                nil)
               (t
                (let ((notes '()))
-                 (dolist (p (ical-properties-of master "EXDATE"))
-                   (dolist (time (ical-property-times p))
-                     (push (org-occurrence-note :cancelled (occurrence-of-local (if whole-day (ical-local time) (local-in time zone zones zone)) whole-day)
-                                                nil
-                                                now)
-                           notes)))
+                 (flet ((occurrence-of (time)
+                          (occurrence-of-local (if whole-day (ical-local time) (local-in time zone zones zone))
+                                               whole-day)))
+                   (dolist (p (ical-properties-of master "EXDATE"))
+                     (dolist (time (ical-property-times p))
+                       (push (org-occurrence-note :cancelled (occurrence-of time) nil now) notes)))
                  (dolist (c changes)
                    (let* ((id (ical-property-time (ical-property-of c "RECURRENCE-ID")))
-                          (from (and id
-                                     (occurrence-of-local (if whole-day (ical-local id) (local-in id zone zones zone)) whole-day))))
+                          (from (and id (occurrence-of id))))
                      (when from
                        (if (string-equal (or (ical-value-of c "STATUS") "") "CANCELLED")
                            (push (org-occurrence-note :cancelled from nil now) notes)
                            (multiple-value-bind (moved-start moved-end moved-whole) (event-span c zones zone)
                              (declare (ignore moved-end))
                              (let ((to (and moved-start
-                                            (occurrence-of-local (if moved-whole (* 86400 moved-start) moved-start) moved-whole))))
+                                            (occurrence-of-local (if moved-whole (* 86400 moved-start) moved-start)
+                                                                 moved-whole))))
                                (when (and to (not (equal to from)))
-                                 (push (org-occurrence-note :moved from to now) notes))))))))
+                                 (push (org-occurrence-note :moved from to now) notes)))))))))
                  ;; more times cancelled or moved than are written out: its times written out instead
                  (when (> (length notes) *most-times-written*)
                    (return-from org-times-of nil))
@@ -345,7 +355,8 @@ timestamps' texts on ZONE's clock, *MOST-TIMES-WRITTEN* at most."
     (loop for o in (icalendar-occurrences (make-ical-component "VCALENDAR" '() (append zones members))
                                           from
                                           to
-                                          :zone zone)
+                                          :zone zone
+                                          :most most)
           for count from 0 below most
           unless (string-equal (or (ical-value-of (ical-occurrence-component o) "STATUS") "") "CANCELLED")
             collect (if (ical-occurrence-whole-day o)
@@ -398,8 +409,9 @@ the universal time FROM below TO; notes are noted at NOW."
           (let ((deadline (planned "DUE")) (scheduled (planned "DTSTART"))
                 (closed (let* ((time (ical-property-time (ical-property-of master "COMPLETED")))
                                (local (and time (local-in time zone zones zone))))
-                          (and local (org-day-timestamp-text (floor local 86400) :hour (floor (mod local 86400) 3600)
-                                                                                 :minute (floor (mod local 3600) 60))))))
+                          (and local (org-day-timestamp-text (floor local 86400)
+                                                             :hour (floor (mod local 86400) 3600)
+                                                             :minute (floor (mod local 3600) 60))))))
             (when (or deadline scheduled closed)
               (format out "~{~a~^ ~}~%" (remove nil (list (and closed (format nil "CLOSED: ~a" closed))
                                                           (and deadline (format nil "DEADLINE: ~a" deadline))
@@ -409,7 +421,9 @@ the universal time FROM below TO; notes are noted at NOW."
       (when location (format out ":LOCATION: ~a~%" (agenda-guarded location)))
       (when written-out
         (format out ":~a: ~{~a~^ ~}~%" *rule-property*
-                (or (loop for p in (ical-properties-of master "RRULE") collect (agenda-guarded (one-line (ical-property-value p)))) (list "RDATE"))))
+                (or (loop for p in (ical-properties-of master "RRULE")
+                          collect (agenda-guarded (one-line (ical-property-value p))))
+                    (list "RDATE"))))
       (format out ":END:~%")
       (when (second times)
         (format out ":LOGBOOK:~%~{~a~%~}:END:~%" (second times)))
@@ -418,24 +432,28 @@ the universal time FROM below TO; notes are noted at NOW."
         (write-string (description-block description) out)))))
 
 (defun calendar-entries (calendar &rest arguments &key (level 2) zone now from to)
-  "The Org entries of the events and tasks of CALENDAR, a calendar (VCALENDAR), each a
-heading of LEVEL stars, as EVENT-ENTRY writes them with ZONE, NOW, FROM and
-TO; how many as a second value."
+  "The Org entries of the events and tasks of CALENDAR, a calendar (VCALENDAR),
+each a heading of LEVEL stars, as EVENT-ENTRY writes them with ZONE, NOW, FROM
+and TO; how many as a second value."
   (declare (ignore level zone now from to))
   (let ((groups (uid-groups calendar)))
-    (values (format nil "~{~a~}" (loop for members in groups collect (apply #'event-entry members calendar arguments)))
-            (length groups))))
+    (with-periods-together
+      (values (format nil "~{~a~}"
+                      (loop for members in groups collect (apply #'event-entry members calendar arguments)))
+              (length groups)))))
 
 ;;; Entries read back as events
 
 (defun zone-tzid (zone)
-  "The time zone identifier (TZID) ZONE is written with: its name, when it is a zone's name;
-NIL when it has none, and times are written in Coordinated Universal Time (UTC)."
+  "The time zone identifier (TZID) ZONE is written with: its name, when it is a
+zone's name; NIL when it has none, and times are written in Coordinated
+Universal Time (UTC)."
   (let ((name (time-zone-name zone)))
     (and name (time-zone-name-p name) name)))
 
 (defun local-ical-time (local zone)
-  "The local time LOCAL on ZONE's clock as an ICAL-TIME: in ZONE by its name, else in Coordinated Universal Time (UTC)."
+  "The local time LOCAL on ZONE's clock as an ICAL-TIME: in ZONE by its name,
+else in Coordinated Universal Time (UTC)."
   (let ((tzid (zone-tzid zone)))
     (if tzid
         (make-ical-time (floor local 86400) (mod local 86400) tzid)
@@ -450,7 +468,8 @@ NIL when it has none, and times are written in Coordinated Universal Time (UTC).
 
 (defun timing-of-stamp (text zone)
   "The properties saying the times of TEXT, a timestamp or a range of two, on
-ZONE's clock: start (DTSTART), end (DTEND), and recurrence rule (RRULE) for a repeater; NIL when TEXT is none."
+ZONE's clock: start (DTSTART), end (DTEND), and recurrence rule (RRULE) for a
+repeater; NIL when TEXT is none."
   (multiple-value-bind (ts until) (stamp-ends text)
     (when ts
       (append
@@ -510,7 +529,8 @@ gives, or NIL for each; NIL when no rule of recurrence says it."
                    (make-ical-recur :daily
                                     :interval n
                                     :by-day (mapcar (lambda (wd) (cons nil wd))
-                                                    (sort (copy-list (first (org-rule-get (kind :weekdays) :arguments))) #'<)))))
+                                                    (sort (copy-list (first (org-rule-get (kind :weekdays) :arguments)))
+                                                          #'<)))))
                 ((rest parts) nil)
                 (t
                  (let ((main (first parts)))
@@ -525,8 +545,8 @@ gives, or NIL for each; NIL when no rule of recurrence says it."
                                                             (make-ical-recur :monthly
                                                                              :interval interval
                                                                              :by-day (list (cons c b)))))))))
-                       (:weekdays (make-ical-recur :weekly
-                                                   :by-day (mapcar (lambda (wd) (cons nil wd)) (sort (copy-list a) #'<))))
+                       (:weekdays (make-ical-recur :weekly :by-day (mapcar (lambda (wd) (cons nil wd))
+                                                                           (sort (copy-list a) #'<))))
                        (:cyclic (setf first (or first b))
                         (if (zerop (mod a 7))
                             (make-ical-recur :weekly :interval (/ a 7))
@@ -534,12 +554,16 @@ gives, or NIL for each; NIL when no rule of recurrence says it."
                        ;; every so many weeks on several days: a cycle of weeks each
                        (:any (let ((cycles (mapcar (lambda (r) (org-rule-get r :arguments)) a)))
                                (when (and (every (lambda (r) (eq (org-rule-get r :kind) :cyclic)) a)
-                                          (every (lambda (c) (and (= (first c) (first (first cycles))) (zerop (mod (first c) 7)))) cycles))
+                                          (every (lambda (c) (and (= (first c) (first (first cycles)))
+                                                                  (zerop (mod (first c) 7))))
+                                                 cycles))
                                  (setf first (or first (reduce #'min cycles :key #'second)))
-                                 (make-ical-recur :weekly :interval (/ (first (first cycles)) 7)
-                                                          :by-day (sort (mapcar (lambda (c) (cons nil (weekday (second c)))) cycles)
-                                                                        #'<
-                                                                        :key #'cdr)))))
+                                 (make-ical-recur :weekly
+                                                  :interval (/ (first (first cycles)) 7)
+                                                  :by-day (sort (mapcar (lambda (c) (cons nil (weekday (second c))))
+                                                                        cycles)
+                                                                #'<
+                                                                :key #'cdr)))))
                        (:date (cond ((and (eq a t) (integerp c) (eq b t))
                                      (make-ical-recur :monthly :by-month-day (list c)))
                                     ((and (eq a t) (integerp c) (integerp b))
@@ -564,9 +588,10 @@ gives, or NIL for each; NIL when no rule of recurrence says it."
 
 (defun timing-of-rule (text zone today agreed-start)
   "The properties saying the times of TEXT, a timestamp by rule, on ZONE's
-clock: start (DTSTART), end (DTEND) and recurrence rule (RRULE), the first time that of its range of days,
-else AGREED-START (a day number) when the rule takes it, else the first the
-rule takes from the day number TODAY; NIL when no rule of recurrence says it."
+clock: start (DTSTART), end (DTEND) and recurrence rule (RRULE), the first time
+that of its range of days, else AGREED-START (a day number) when the rule takes
+it, else the first the rule takes from the day number TODAY; NIL when no rule of
+recurrence says it."
   (let ((rule (org-read-rule text)))
     (when rule
       (multiple-value-bind (recur first last) (recur-of-rule rule)
@@ -584,8 +609,7 @@ rule takes from the day number TODAY; NIL when no rule of recurrence says it."
                 (when last
                   (setf (ical-recur-until recur)
                         (if hour
-                            (let ((u (zone-universal-time zone (+ (* 86400 last) (mod start 86400)))))
-                              (universal-ical-time u))
+                            (universal-ical-time (zone-universal-time zone (+ (* 86400 last) (mod start 86400))))
                             (make-ical-time last))))
                 (append (if hour
                             (list* (ical-time-property "DTSTART" (local-ical-time start zone))
@@ -610,8 +634,8 @@ rule takes from the day number TODAY; NIL when no rule of recurrence says it."
     (and value (agenda-unguarded value))))
 
 (defun uid-day (uid text)
-  "The unique identifier (UID) of the event of TEXT, a timestamp of an entry whose UID is UID
-other than its first: UID and the day it says (UID-20261103)."
+  "The unique identifier (UID) of the event of TEXT, a timestamp of an entry
+whose UID is UID other than its first: UID and the day it says (UID-20261103)."
   (let ((ts (stamp-ends text)))
     (if ts
         (multiple-value-bind (year month day) (day-date (org-ts-get ts :day-number))
@@ -650,14 +674,15 @@ MANAGED's others after."
             (remove-if (lambda (p) (member (ical-property-name p) placed :test #'string-equal)) managed))))
 
 (defun agreed-members (agreed uid)
-  "The components of AGREED, a calendar (VCALENDAR) or NIL, of the unique identifier (UID) UID:
-the one recurring first, those changing it after."
+  "The components of AGREED, a calendar (VCALENDAR) or NIL, of the unique
+identifier (UID) UID: the one recurring first, those changing it after."
   (and agreed (group-of-uid agreed uid)))
 
 (defun agreed-times-hold-p (members agreed zone stamp cancelled moved)
   "True when MEMBERS, an event as agreed with the calendar (of AGREED, its
-calendar (VCALENDAR)), says the same times as an entry with the timestamp STAMP and the
-times CANCELLED and MOVED (ORG-OCCURRENCE-NOTES): as Org would write them."
+calendar (VCALENDAR)), says the same times as an entry with the timestamp STAMP
+and the times CANCELLED and MOVED (ORG-OCCURRENCE-NOTES): as Org would write
+them."
   (let* ((master (first members))
          (said (org-times-of master (rest members) (calendar-zones agreed) zone 0)))
     (and said
@@ -679,28 +704,29 @@ second, or NIL for a single one (ORG-READ-TS each)."
             (and dash (org-read-ts (subseq text (+ dash 3)))))))
 
 (defun repeating-p (text)
-  "True when TEXT, a timestamp of an entry, says a time that repeats: by rule, or with a repeater."
+  "True when TEXT, a timestamp of an entry, says a time that repeats: by rule,
+or with a repeater."
   (or (org-rule-text-p text)
       (let ((ts (stamp-ends text)))
         (and ts (org-ts-get ts :repeat-value) (plusp (org-ts-get ts :repeat-value))))))
 
+(defun kept-timing (component)
+  "The properties of COMPONENT that say its times (*TIMING-PROPERTIES*)."
+  (remove-if-not (lambda (p) (member (ical-property-name p) *timing-properties* :test #'string-equal))
+                 (ical-component-properties component)))
+
 (defun entry-components (entry &key agreed uid (zone (system-time-zone)) (now (get-universal-time)))
   "The events or the task ENTRY, an agenda entry (ORG-AGENDA-FILE-ENTRIES),
 says, on ZONE's clock: a list of components, each event's changes of its
-occurrences after it. Its unique identifier (UID) property names the event of its first time;
-another time is another event, its UID that and the day. AGREED, a calendar (VCALENDAR)
-holding the events as the calendar last had them, gives what an entry does
-not say: the properties it keeps, the categories as written, and the times of
-an event whose times the entry does not say (written out, or said as the
-calendar said them). UID, when given, is the UID of an entry that has none
-yet (NEW-UID); time stamp (DTSTAMP) is NOW."
+occurrences after it. Its unique identifier (UID) property names the event of
+its first time; another time is another event, its UID that and the day.
+AGREED, a calendar (VCALENDAR) holding the events as the calendar last had
+them, gives what an entry does not say: the properties it keeps, the
+categories as written, and the times of an event whose times the entry does
+not say (written out, or said as the calendar said them). UID, when given, is
+the UID of an entry that has none yet (NEW-UID); time stamp (DTSTAMP) is NOW."
   (let* ((uid (one-line (or (entry-property entry *uid-property*) uid (new-uid))))
-         (local-tags (agenda-entry-get entry :local-tags))
-         (cancelled-tag (member *cancelled-tag* local-tags :test #'string=))
-         (tags (remove *cancelled-tag* local-tags :test #'string=))
-         ;; a field left blank, as a form leaves it, is none
-         (description (unless-blank (entry-description entry)))
-         (location (unless-blank (entry-property entry "LOCATION")))
+         (cancelled-tag (member *cancelled-tag* (agenda-entry-get entry :local-tags) :test #'string=))
          (stamps (agenda-entry-get entry :stamps))
          (ranges (mapcar (lambda (r) (format nil "~a--~a" (first r) (second r))) (agenda-entry-get entry :ranges)))
          (task (and (agenda-entry-get entry :todo-type) (agenda-entry-get entry :deadline) (null stamps) (null ranges)))
@@ -714,167 +740,175 @@ yet (NEW-UID); time stamp (DTSTAMP) is NOW."
                       ((and (agenda-entry-get entry :scheduled)
                             (char= (char (agenda-entry-get entry :scheduled) 0) #\<))
                        (list (agenda-entry-get entry :scheduled)))))
-         (stamp-utc (let ((u now)) (universal-ical-time u)))
-         (today (floor (zone-local-time zone now) 86400)))
-    (multiple-value-bind (cancelled moved)
-        (org-occurrence-notes (agenda-entry-get entry :text) (agenda-entry-get entry :position)
-                              (agenda-entry-get entry :end))
-      (flet ((said (kept-master kind status)
-               ;; what the entry says of an event, its kept properties KEPT-MASTER's
-               (let ((categories (loop for tag in tags
-                                       collect (or (and kept-master
-                                                        (loop for p in (ical-properties-of kept-master "CATEGORIES")
-                                                              thereis (find tag
-                                                                            (ical-texts (ical-property-value p))
-                                                                            :key #'tag-name
-                                                                            :test #'equal)))
-                                                   tag))))
-                 (remove nil
-                         (list (make-ical-property "SUMMARY"
-                                                   (ical-text-escaped (summary-words (agenda-entry-get entry :title))))
-                               (and location (make-ical-property "LOCATION" (ical-text-escaped location)))
-                               (and categories (make-ical-property "CATEGORIES" (ical-texts-escaped categories)))
-                               (and status (make-ical-property "STATUS" status))
-                               (and description (make-ical-property "DESCRIPTION" (ical-text-escaped description)))
-                               (ical-time-property "DTSTAMP" stamp-utc)
-                               (and (eq kind :changed) kept-master (ical-value-of kept-master "SEQUENCE")
-                                    (make-ical-property "SEQUENCE"
-                                                        (princ-to-string (1+ (or (ignore-errors (parse-integer (ical-value-of kept-master "SEQUENCE"))) 0)))))))))
-             (status-of (kept-master)
-               (let ((was (and kept-master (string-upcase (or (ical-value-of kept-master "STATUS") "")))))
-                 (cond (cancelled-tag "CANCELLED")
-                       ((and was (plusp (length was)) (string/= was "CANCELLED")) was)))))
-        (cond
-          (task
-           (let* ((members (agreed-members agreed uid))
-                  (kept (first members))
-                  (done (string= (symbol-name (agenda-entry-get entry :todo-type)) "DONE"))
-                  (timing (flet ((planned (name text)
-                                   (let ((props (timing-of-stamp text zone)))
-                                     (and props
-                                          (let ((p (first props)))
-                                            (make-ical-property name
-                                                                (ical-property-value p)
-                                                                (ical-property-parameters p)))))))
-                            (remove nil (list (planned "DUE" (agenda-entry-get entry :deadline))
-                                              (and (agenda-entry-get entry :scheduled)
-                                                   (planned "DTSTART" (agenda-entry-get entry :scheduled)))))))
-                  (closed (and done (agenda-entry-get entry :closed) (org-read-ts (agenda-entry-get entry :closed))))
-                  (status (cond (done "COMPLETED")
-                                ((and kept (string-equal (or (ical-value-of kept "STATUS") "") "COMPLETED"))
-                                 "NEEDS-ACTION")
-                                (t (status-of kept)))))
-             (list (make-ical-component
-                    "VTODO"
-                    (changed-properties (if kept (ical-component-properties kept) '())
-                                        (append (list (make-ical-property "UID" uid))
-                                                (said kept :task status)
-                                                timing
-                                                (and closed (list (ical-time-property "COMPLETED"
-                                                                                      (let ((u (zone-universal-time zone
-                                                                                                                    (ts-local closed))))
-                                                                                        (universal-ical-time u)))))))))))
+         (said (entry-said entry (universal-ical-time now)))
+         (status-of (lambda (kept-master)
+                      ;; the status an event of the entry has: cancelled when tagged so, else as it was
+                      (let ((was (and kept-master (string-upcase (or (ical-value-of kept-master "STATUS") "")))))
+                        (cond (cancelled-tag "CANCELLED")
+                              ((and was (plusp (length was)) (string/= was "CANCELLED")) was))))))
+    (cond (task (entry-task-components entry uid agreed zone said status-of))
           ((or (entry-property entry *rule-property*) (and (null times) (agreed-members agreed uid)))
            ;; times written out, or none written (all before the days written): the
            ;; calendar's stand, the rest as the entry says
-           (let* ((members (agreed-members agreed uid)) (kept (first members)))
-             (when kept
-               (cons (make-ical-component (ical-component-name kept)
-                                          (changed-properties (ical-component-properties kept)
-                                                              (append (list (make-ical-property "UID" uid))
-                                                                      (said kept :same (status-of kept))
-                                                                      (remove-if-not (lambda (p)
-                                                                                       (member (ical-property-name p)
-                                                                                               *timing-properties*
-                                                                                               :test #'string-equal))
-                                                                                     (ical-component-properties kept)))))
-                     (rest members)))))
-          (t
-           (loop with noted = (find-if #'repeating-p times)
-                 for text in times
-                 for first = t then nil
-                 for this-uid = (if first uid (uid-day uid text))
-                 for members = (agreed-members agreed this-uid)
-                 for kept = (first members)
-                 for notes-here = (eq text noted)
-                 for hold = (and kept
-                                 (agreed-times-hold-p members
-                                                      agreed
-                                                      zone
-                                                      text
-                                                      (and notes-here cancelled)
-                                                      (and notes-here moved)))
-                 for timing = (cond (hold (remove-if-not (lambda (p)
-                                                           (member (ical-property-name p)
-                                                                   *timing-properties*
-                                                                   :test #'string-equal))
-                                                         (ical-component-properties kept)))
-                                    ((org-rule-text-p text)
-                                     (timing-of-rule text zone today
-                                                     (let ((s (and kept
-                                                                   (ical-property-time (ical-property-of kept "DTSTART")))))
-                                                       (and s (ical-time-day s)))))
-                                    (t (timing-of-stamp text zone)))
-                 when timing
-                   nconc (let* ((start (ical-property-time (find "DTSTART"
-                                                                 timing
-                                                                 :key #'ical-property-name
-                                                                 :test #'string-equal)))
-                                (end (ical-property-time (find "DTEND"
-                                                               timing
-                                                               :key #'ical-property-name
-                                                               :test #'string-equal)))
-                                (length (and start end (- (ical-local end) (ical-local start))))
-                                (exdates (and notes-here (not hold) cancelled
-                                              (list (let ((times (mapcar (lambda (o) (occurrence-time o start zone)) cancelled)))
-                                                      (make-ical-property "EXDATE"
-                                                                          (format nil
-                                                                                  "~{~a~^,~}"
-                                                                                  (mapcar #'ical-time-text times))
-                                                                          (ical-property-parameters (ical-time-property "EXDATE" (first times))))))))
-                                (master (make-ical-component (if kept (ical-component-name kept) "VEVENT")
-                                                             (changed-properties (if kept
-                                                                                     (ical-component-properties kept)
-                                                                                     '())
-                                                                                 (append (list (make-ical-property "UID" this-uid))
-                                                                                         (said kept
-                                                                                               (if hold :same :changed)
-                                                                                               (status-of kept))
-                                                                                         timing exdates)))))
-                           (cons master
-                                 (if hold
-                                     (rest members)
-                                     (and notes-here
-                                          (loop for (from . to) in moved
-                                                for id = (occurrence-time from start zone)
-                                                for new = (occurrence-time to start zone)
-                                                for was = (find-if (lambda (c) (equal (ical-value-of c "RECURRENCE-ID") (ical-time-text id))) (rest members))
-                                                collect (make-ical-component
-                                                         (ical-component-name master)
-                                                         (changed-properties
-                                                          (if was (ical-component-properties was) '())
-                                                          (append (list (make-ical-property "UID" this-uid)
-                                                                        (ical-time-property "RECURRENCE-ID" id))
-                                                                  (said nil :changed (status-of nil))
-                                                                  (list (ical-time-property "DTSTART" new))
-                                                                  (and length (list (ical-time-property "DTEND"
-                                                                                                        (if (ical-time-date-p new)
-                                                                                                            (make-ical-time (+ (ical-time-day new) (floor length 86400)))
-                                                                                                            (let ((l (+ (ical-local new) length)))
-                                                                                                              (make-ical-time (floor l 86400)
-                                                                                                                              (mod l 86400)
-                                                                                                                              (ical-time-zone new))))))))))))))))))))))
+           (entry-kept-components uid agreed said status-of))
+          (t (multiple-value-bind (cancelled moved)
+                 (org-occurrence-notes (agenda-entry-get entry :text) (agenda-entry-get entry :position)
+                                       (agenda-entry-get entry :end))
+               (loop with noted = (find-if #'repeating-p times)
+                     with today = (floor (zone-local-time zone now) 86400)
+                     for text in times
+                     for first = t then nil
+                     nconc (entry-time-components text (if first uid (uid-day uid text)) agreed zone today
+                                                  (and (eq text noted) cancelled) (and (eq text noted) moved)
+                                                  said status-of)))))))
+
+(defun entry-said (entry stamp)
+  "A function of a component the calendar kept (or NIL), a kind (:TASK,
+:SAME, :CHANGED) and a status, giving the properties ENTRY says of its
+event: summary, location, categories as the component wrote them, status,
+description, the time stamp (DTSTAMP) STAMP, and for :CHANGED the next
+sequence number."
+  (let* ((tags (remove *cancelled-tag* (agenda-entry-get entry :local-tags) :test #'string=))
+         ;; a field left blank, as a form leaves it, is none
+         (description (unless-blank (entry-description entry)))
+         (location (unless-blank (entry-property entry "LOCATION")))
+         (summary (ical-text-escaped (summary-words (agenda-entry-get entry :title)))))
+    (lambda (kept-master kind status)
+      (let ((categories (loop for tag in tags
+                              collect (or (and kept-master
+                                               (loop for p in (ical-properties-of kept-master "CATEGORIES")
+                                                     thereis (find tag (ical-texts (ical-property-value p))
+                                                                   :key #'tag-name :test #'equal)))
+                                          tag)))
+            (sequence (and (eq kind :changed) kept-master (ical-value-of kept-master "SEQUENCE"))))
+        (remove nil
+                (list (make-ical-property "SUMMARY" summary)
+                      (and location (make-ical-property "LOCATION" (ical-text-escaped location)))
+                      (and categories (make-ical-property "CATEGORIES" (ical-texts-escaped categories)))
+                      (and status (make-ical-property "STATUS" status))
+                      (and description (make-ical-property "DESCRIPTION" (ical-text-escaped description)))
+                      (ical-time-property "DTSTAMP" stamp)
+                      (and sequence
+                           (make-ical-property "SEQUENCE"
+                                               (princ-to-string (1+ (or (ignore-errors (parse-integer sequence))
+                                                                        0)))))))))))
+
+(defun entry-task-components (entry uid agreed zone said status-of)
+  "The task (VTODO) ENTRY, a TODO with a deadline and no other time, says,
+as a list of one component, its unique identifier (UID) UID: its due date,
+its start when it is scheduled, completed when done, the rest from SAID and
+STATUS-OF as ENTRY-COMPONENTS makes them, the properties AGREED kept of it
+kept."
+  (let* ((kept (first (agreed-members agreed uid)))
+         (done (string= (symbol-name (agenda-entry-get entry :todo-type)) "DONE"))
+         (timing (flet ((planned (name text)
+                          (let ((p (first (timing-of-stamp text zone))))
+                            (and p (make-ical-property name (ical-property-value p) (ical-property-parameters p))))))
+                   (remove nil (list (planned "DUE" (agenda-entry-get entry :deadline))
+                                     (and (agenda-entry-get entry :scheduled)
+                                          (planned "DTSTART" (agenda-entry-get entry :scheduled)))))))
+         (closed (and done (agenda-entry-get entry :closed) (org-read-ts (agenda-entry-get entry :closed))))
+         (status (cond (done "COMPLETED")
+                       ((and kept (string-equal (or (ical-value-of kept "STATUS") "") "COMPLETED")) "NEEDS-ACTION")
+                       (t (funcall status-of kept)))))
+    (list (make-ical-component
+           "VTODO"
+           (changed-properties (if kept (ical-component-properties kept) '())
+                               (append (list (make-ical-property "UID" uid))
+                                       (funcall said kept :task status)
+                                       timing
+                                       (and closed
+                                            (list (ical-time-property
+                                                   "COMPLETED"
+                                                   (universal-ical-time
+                                                    (zone-universal-time zone (ts-local closed))))))))))))
+
+(defun entry-kept-components (uid agreed said status-of)
+  "The components of the event of unique identifier (UID) UID as AGREED kept
+them, its times as the calendar said them and the rest from SAID and
+STATUS-OF as ENTRY-COMPONENTS makes them; NIL when AGREED has none."
+  (let* ((members (agreed-members agreed uid)) (kept (first members)))
+    (when kept
+      (cons (make-ical-component (ical-component-name kept)
+                                 (changed-properties (ical-component-properties kept)
+                                                     (append (list (make-ical-property "UID" uid))
+                                                             (funcall said kept :same (funcall status-of kept))
+                                                             (kept-timing kept))))
+            (rest members)))))
+
+(defun entry-time-components (text uid agreed zone today cancelled moved said status-of)
+  "The components of the event an entry's timestamp TEXT says, its unique
+identifier (UID) UID: the event, its times from TEXT unless they still hold
+as AGREED kept them, the occurrences CANCELLED left out, and a change of each
+occurrence MOVED, as ORG-OCCURRENCE-NOTES gives them; the rest from SAID and
+STATUS-OF as ENTRY-COMPONENTS makes them. TODAY is the day number a rule's
+times are worked out from. NIL when TEXT says no time."
+  (let* ((members (agreed-members agreed uid))
+         (kept (first members))
+         (hold (and kept (agreed-times-hold-p members agreed zone text cancelled moved)))
+         (timing (cond (hold (kept-timing kept))
+                       ((org-rule-text-p text)
+                        (timing-of-rule text zone today
+                                        (let ((s (and kept (ical-property-time (ical-property-of kept "DTSTART")))))
+                                          (and s (ical-time-day s)))))
+                       (t (timing-of-stamp text zone)))))
+    (when timing
+      (flet ((timing-time (name)
+               (ical-property-time (find name timing :key #'ical-property-name :test #'string-equal))))
+        (let* ((start (timing-time "DTSTART"))
+               (end (timing-time "DTEND"))
+               (length (and start end (- (ical-local end) (ical-local start))))
+               (exdates (and (not hold) cancelled
+                             (let ((times (mapcar (lambda (o) (occurrence-time o start zone)) cancelled)))
+                               (list (make-ical-property "EXDATE"
+                                                         (format nil "~{~a~^,~}" (mapcar #'ical-time-text times))
+                                                         (ical-property-parameters
+                                                          (ical-time-property "EXDATE" (first times))))))))
+               (master (make-ical-component (if kept (ical-component-name kept) "VEVENT")
+                                            (changed-properties (if kept (ical-component-properties kept) '())
+                                                                (append (list (make-ical-property "UID" uid))
+                                                                        (funcall said kept (if hold :same :changed)
+                                                                                 (funcall status-of kept))
+                                                                        timing exdates)))))
+          (cons master
+                (if hold
+                    (rest members)
+                    (loop for (from . to) in moved
+                          collect (moved-occurrence master (rest members) uid (occurrence-time from start zone)
+                                                    (occurrence-time to start zone) length
+                                                    (funcall said nil :changed (funcall status-of nil)))))))))))
+
+(defun moved-occurrence (master changes uid id new length said)
+  "The change of the occurrence ID of MASTER, an event of unique identifier
+\(UID) UID, moved to start at NEW and take LENGTH seconds (or NIL), with the
+properties SAID; what CHANGES, the changes the calendar kept, held for it
+kept."
+  (let ((was (find-if (lambda (c) (equal (ical-value-of c "RECURRENCE-ID") (ical-time-text id))) changes)))
+    (make-ical-component
+     (ical-component-name master)
+     (changed-properties
+      (if was (ical-component-properties was) '())
+      (append (list (make-ical-property "UID" uid) (ical-time-property "RECURRENCE-ID" id))
+              said
+              (list (ical-time-property "DTSTART" new))
+              (and length
+                   (list (ical-time-property "DTEND"
+                                             (if (ical-time-date-p new)
+                                                 (make-ical-time (+ (ical-time-day new) (floor length 86400)))
+                                                 (let ((l (+ (ical-local new) length)))
+                                                   (make-ical-time (floor l 86400) (mod l 86400)
+                                                                   (ical-time-zone new))))))))))))
 
 (defun entry-calendar (entry &rest arguments &key agreed uid zone now)
-  "A calendar (VCALENDAR) of what ENTRY says (ENTRY-COMPONENTS, with AGREED, the unique identifier (UID), ZONE
-and NOW), as COMPONENTS-CALENDAR makes one."
+  "A calendar (VCALENDAR) of what ENTRY says (ENTRY-COMPONENTS, with AGREED, the
+unique identifier (UID), ZONE and NOW), as COMPONENTS-CALENDAR makes one."
   (declare (ignore uid zone now))
   (components-calendar (apply #'entry-components entry arguments) agreed))
 
 (defun components-calendar (components agreed)
-  "A calendar (VCALENDAR) of COMPONENTS, with the time zone (VTIMEZONE) of each zone their times
-name: AGREED's own (a VCALENDAR, or NIL), else one written from the system's
-zone of that name."
+  "A calendar (VCALENDAR) of COMPONENTS, with the time zone (VTIMEZONE) of each
+zone their times name: AGREED's own (a VCALENDAR, or NIL), else one written from
+the system's zone of that name."
   (let* ((tzids (remove-duplicates
                  (loop for c in components
                        nconc (loop for p in (ical-component-properties c)

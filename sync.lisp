@@ -42,18 +42,25 @@ as written when it is a path, else that name beside the agenda's main file."
         (path-join (parent-path (org-agenda-main-file)) name))))
 
 (defun safe-name (text)
-  "TEXT as a name of a file of its own: each character but letters, digits,
-dot and hyphen an underscore, at most 100 of them, and a hash of the whole
-TEXT after them, so that two texts alike there are two names."
-  (let ((name (map 'string (lambda (c) (if (or (alphanumericp c) (find c ".-")) c #\_)) text)))
+  "TEXT as a name of a file of its own: each character but the letters a to
+z and A to Z, digits, dot and hyphen an underscore, at most 100 of them, and
+a hash of the whole TEXT after them, so that two texts alike there are two
+names. Each character takes one octet, so the name is never too long for a
+file system, whatever the script of TEXT."
+  (let ((name (map 'string (lambda (c) (if (or (char<= #\a c #\z) (char<= #\A c #\Z) (char<= #\0 c #\9) (find c ".-"))
+                                           c
+                                           #\_))
+                   text)))
     (format nil "~a-~36r" (subseq name 0 (min 100 (length name))) (string-hash text))))
 
 (defun calendar-directory (url)
-  "The directory in the state directory that keeps what the calendar at web address (URL) last agreed with its server."
+  "The directory in the state directory that keeps what the calendar at web
+address (URL) last agreed with its server."
   (private-state-directory (format nil "calendars/~a/" (safe-name url))))
 
 (defun subscription-path (subscription)
-  "The Org file SUBSCRIPTION, a plist of *CALDAV-SUBSCRIPTIONS*, is written into, in the cache."
+  "The Org file SUBSCRIPTION, a plist of *CALDAV-SUBSCRIPTIONS*, is written
+into, in the cache."
   (path-join (private-cache-directory "caldav/subscriptions/")
              (format nil "~a.org" (safe-name (getf subscription :name)))))
 
@@ -78,42 +85,54 @@ a few seconds have gone."
 
 ;;; What a calendar last agreed with its server
 
-(defstruct (agreed (:constructor make-agreed (url etag file uid)))
-  "An event as its calendar last agreed with the server: its web address (URL), its entity tag (ETAG),
-the FILE its copy is kept in, and its unique identifier (UID)."
-  url etag file uid)
+(defstruct (agreed (:constructor make-agreed (url etag file uid &optional hash)))
+  "An event as its calendar last agreed with the server: its web address
+\(URL), its entity tag (ETAG), the FILE its copy is kept in, its unique
+identifier (UID), and the HASH of its entry's text as it stood then
+\(STRING-HASH), or NIL when that is not known."
+  url etag file uid hash)
 
 (defun read-calendar-state (directory)
-  "What the calendar kept in DIRECTORY last agreed with its server: its sync
-token (NIL for none), and its events, a list of AGREED."
+  "What the calendar kept in DIRECTORY last agreed with its server, three
+values: its sync token (NIL for none), its events, a list of AGREED, and the
+calendar's tag of its contents (ctag) then, or NIL."
   (let ((text (ignore-errors (file-text (path-join directory "state") :limit *icalendar-largest*)))
-        (token nil) (events '()))
+        (token nil) (events '()) (ctag nil))
     (when text
       (dolist (line (uiop:split-string text :separator (string #\Newline)))
         (let ((fields (uiop:split-string line :separator (string #\Tab))))
-          (cond ((and (string= (first fields) "token") (second fields) (plusp (length (second fields))))
-                 (setf token (second fields)))
-                ((and (string= (first fields) "event") (= (length fields) 5))
-                 (destructuring-bind (url etag file uid) (rest fields)
-                   (push (make-agreed url (and (plusp (length etag)) etag) file uid) events)))))))
-    (values token (nreverse events))))
+          (cond ((and (member (first fields) '("token" "ctag") :test #'string=)
+                      (second fields) (plusp (length (second fields))))
+                 (if (string= (first fields) "token")
+                     (setf token (second fields))
+                     (setf ctag (second fields))))
+                ((and (string= (first fields) "event") (<= 5 (length fields) 6))
+                 (destructuring-bind (url etag file uid &optional hash) (rest fields)
+                   (push (make-agreed url (and (plusp (length etag)) etag) file uid
+                                      (and hash (parse-integer hash :radix 36 :junk-allowed t)))
+                         events)))))))
+    (values token (nreverse events) ctag)))
 
 (defun field (text)
   "TEXT as a field of the state file: on one line, no tab in it."
   (one-line (or text "")))
 
-(defun write-calendar-state (directory token events)
-  "Keep TOKEN and EVENTS, a list of AGREED, as what the calendar in DIRECTORY agreed with its server."
+(defun write-calendar-state (directory token events &optional ctag)
+  "Keep TOKEN, EVENTS, a list of AGREED, and CTAG, the calendar's tag of its
+contents, as what the calendar in DIRECTORY agreed with its server."
   (replace-file (path-join directory "state")
                 (with-output-to-string (out)
                   (format out "token~c~a~%" #\Tab (field token))
+                  (when ctag (format out "ctag~c~a~%" #\Tab (field ctag)))
                   (dolist (e events)
-                    (format out "event~c~a~c~a~c~a~c~a~%" #\Tab (field (agreed-url e)) #\Tab (field (agreed-etag e))
-                            #\Tab (field (agreed-file e)) #\Tab (field (agreed-uid e)))))
+                    (format out "event~c~a~c~a~c~a~c~a~@[~c~36r~]~%" #\Tab (field (agreed-url e))
+                            #\Tab (field (agreed-etag e)) #\Tab (field (agreed-file e)) #\Tab (field (agreed-uid e))
+                            (and (agreed-hash e) #\Tab) (agreed-hash e))))
                 :mode #o600))
 
 (defun agreed-calendar (directory event)
-  "The copy of EVENT (an AGREED) kept in DIRECTORY, read as a calendar (VCALENDAR), or NIL."
+  "The copy of EVENT (an AGREED) kept in DIRECTORY, read as a calendar
+\(VCALENDAR), or NIL."
   (let ((text (ignore-errors (file-text (path-join directory (agreed-file event)) :limit *icalendar-largest*))))
     (and text (first (ignore-errors (icalendar-read text))))))
 
@@ -155,7 +174,8 @@ them by their unique identifier (UID))."
 ;;; Your lines in an entry, kept when the server's version is written
 
 (defun timestamp-line-p (line)
-  "True when LINE holds active timestamps alone, as an entry written here holds its times."
+  "True when LINE holds active timestamps alone, as an entry written here holds
+its times."
   (cl-ppcre:scan "^[ \\t]*<(?:%%\\(.*\\)|\\d{4}-[^>]*)>(?:--<\\d{4}-[^>]*>)?[ \\t]*$" line))
 
 (defun own-lines (own)
@@ -238,15 +258,15 @@ in it are kept."
                                       (t (cl-ppcre:regex-replace-all "<((?:\\d{4}-|%%\\()[^>]*)>" line "[\\1]"))))))))
 
 (defun without-uid (text)
-  "TEXT, an entry, without its unique identifier (UID) property, its property drawer gone when
-nothing is left in it: a copy that is no event's."
+  "TEXT, an entry, without its unique identifier (UID) property, its property
+drawer gone when nothing is left in it: a copy that is no event's."
   (cl-ppcre:regex-replace-all "(?mi)^[ \\t]*:PROPERTIES:[ \\t]*\\n[ \\t]*:END:[ \\t]*\\n"
                           (cl-ppcre:regex-replace-all (format nil "(?mi)^[ \\t]*:~a:.*\\n" *uid-property*) text "")
                           ""))
 
 (defun with-uid (text uid)
-  "TEXT, an entry, with the unique identifier (UID) UID as its UID property, in its property drawer, made after
-its heading and planning when it has none."
+  "TEXT, an entry, with the unique identifier (UID) UID as its UID property, in
+its property drawer, made after its heading and planning when it has none."
   (if (cl-ppcre:scan "(?mi)^[ \\t]*:PROPERTIES:[ \\t]*$" text)
       (cl-ppcre:regex-replace-all "(?mi)^([ \\t]*:PROPERTIES:[ \\t]*\\n)"
                                   text
@@ -302,17 +322,31 @@ time stamp (DTSTAMP) and SEQUENCE left out, words compared as words, sorted."
 ;;; A sync
 
 (defstruct (calendar-pass (:constructor make-calendar-pass (url name directory)))
-  "What one sync did with the calendar at web address (URL), called NAME, whose state is in
-DIRECTORY. INCOMING is the events to write into its entries, each (UID TEXT
-CONFLICT) of the unique identifier (UID) of the event, TEXT the entry as
-EVENT-ENTRY writes it and CONFLICT your copy of the entry when it changed
+  "What one sync did with the calendar at web address (URL), called NAME, whose
+state is in DIRECTORY. INCOMING is the events to write into its entries, each
+\(UID TEXT CONFLICT) of the unique identifier (UID) of the event, TEXT the entry
+as EVENT-ENTRY writes it and CONFLICT your copy of the entry when it changed
 here too. GONE is the UIDs deleted on the server. CANCELLED is the UIDs of
-entries cancelled here whose events were deleted there. NEW-UIDS is the
-entries sent as new events, each (HEADING UID). TOKEN and EVENTS are its
-state once written. SENT and FETCHED are how many. MISSING is how many events
-have no entry any more (deleted here). FAILED is what the server refused, in
-words."
-  url name directory incoming gone cancelled new-uids token events (sent 0) (fetched 0) (missing 0) failed)
+entries cancelled here whose events were deleted there. NEW-UIDS is the entries
+sent as new events, each (HEADING UID). TOKEN and EVENTS are its state once
+written, with CTAG, the calendar's tag of its contents; KEPT is true when they
+differ from what the state held. SENT and FETCHED are how many. MISSING is how
+many events have no entry any more (deleted here). FAILED is what the server
+refused, in words."
+  url name directory incoming gone cancelled new-uids token events ctag kept
+  (sent 0) (fetched 0) (missing 0) failed)
+
+(defun calendar-pass-edits-p (pass)
+  "True when PASS has something to write into the calendars' file."
+  (or (calendar-pass-incoming pass) (calendar-pass-gone pass) (calendar-pass-cancelled pass)
+      (calendar-pass-new-uids pass)))
+
+(defun keep-calendar-state (pass)
+  "Keep what the calendar PASS synced now agrees with its server, when that
+changed."
+  (when (calendar-pass-kept pass)
+    (write-calendar-state (calendar-pass-directory pass) (calendar-pass-token pass) (calendar-pass-events pass)
+                          (calendar-pass-ctag pass))))
 
 (defun cancelled-entry-p (entry)
   "True when ENTRY was cancelled here: its keyword one of *CANCEL-KEYWORDS*."
@@ -328,7 +362,8 @@ words."
   (let ((text (entry-text entry))) (subseq text 0 (or (position #\Newline text) (length text)))))
 
 (defun event-url (calendar-url uid)
-  "The address a new event of unique identifier (UID) is put at in the calendar at CALENDAR-URL."
+  "The address a new event of unique identifier (UID) is put at in the calendar
+at CALENDAR-URL."
   (format nil "~a~:[/~;~]~a.ics" calendar-url (uiop:string-suffix-p calendar-url "/") (safe-name uid)))
 
 (defparameter *most-fetched* 2000
@@ -343,27 +378,40 @@ is noted in the pass and the others go on."
   (let* ((url (getf calendar :url))
          (directory (calendar-directory url))
          (pass (make-calendar-pass url (getf calendar :name) directory)))
-    (multiple-value-bind (token agreed) (read-calendar-state directory)
-      (let ((by-url (make-hash-table :test 'equal)) (by-uid (make-hash-table :test 'equal)))
+    (with-periods-together
+      (sync-calendar-pass account calendar section pass zone now))
+    pass))
+
+(defun sync-calendar-pass (account calendar section pass zone now)
+  "Do the work of SYNC-CALENDAR, noting what was done in PASS."
+  (let ((url (getf calendar :url))
+        (directory (calendar-pass-directory pass)))
+    (multiple-value-bind (token agreed ctag) (read-calendar-state directory)
+      (let ((by-url (make-hash-table :test 'equal)) (by-uid (make-hash-table :test 'equal))
+            ;; the server says nothing changed there since the state was kept
+            (unchanged (and ctag (equal ctag (getf calendar :ctag))))
+            (cut nil))
         (dolist (a agreed) (setf (gethash (agreed-url a) by-url) a (gethash (agreed-uid a) by-uid) a))
-        (flet ((keep (url etag text uid)
+        (flet ((keep (url etag text uid &optional hash)
                  ;; what the server has now for URL, as agreed
                  (let* ((was (gethash url by-url))
                         (file (if was (agreed-file was) (format nil "~a.ics" (random-name)))))
                    (replace-file (path-join directory file) text :mode #o600)
-                   (let ((a (make-agreed url etag file uid)))
-                     (setf (gethash url by-url) a (gethash uid by-uid) a))))
+                   (let ((a (make-agreed url etag file uid hash)))
+                     (setf (gethash url by-url) a (gethash uid by-uid) a (calendar-pass-kept pass) t))))
                (forget (url)
                  (let ((was (gethash url by-url)))
                    (when was
                      (remhash url by-url) (remhash (agreed-uid was) by-uid)
+                     (setf (calendar-pass-kept pass) t)
                      (ignore-errors (remove-file (path-join directory (agreed-file was)))))))
                (refused (entry what status)
                  (push (format nil "~a refused ~a ~a (~a)" (getf calendar :name) what (agenda-entry-get entry :title)
                                status)
                        (calendar-pass-failed pass))))
           ;; what changed there since the last sync
-          (multiple-value-bind (changed gone new-token) (calendar-changes account calendar token)
+          (multiple-value-bind (changed gone new-token)
+              (if unchanged (values '() '() token) (calendar-changes account calendar token))
             (when (eq new-token :none)
               (let ((now-there (calendar-etags account calendar)))
                 (setf changed now-there
@@ -373,16 +421,20 @@ is noted in the pass and the others go on."
                               collect (agreed-url a))
                       new-token nil)))
             ;; asked without a token, the answer lists every event there: those agreed and not in it are gone
-            (when (and (null token) (null gone))
+            (when (and (null token) (null gone) (not unchanged))
               (setf gone
-                    (loop for a in agreed unless (assoc (agreed-url a) changed :test #'string=) collect (agreed-url a))))
+                    (loop for a in agreed
+                          unless (assoc (agreed-url a) changed :test #'string=)
+                            collect (agreed-url a))))
             (setf changed
-                  (remove-if (lambda (c) (let ((a (gethash (car c) by-url))) (and a (equal (agreed-etag a) (cdr c))))) changed))
+                  (remove-if (lambda (c) (let ((a (gethash (car c) by-url))) (and a (equal (agreed-etag a) (cdr c)))))
+                             changed))
             ;; a sync fetches so many at most: the token stays, and the next sync fetches the rest
             (when (> (length changed) *most-fetched*)
               (setf changed (subseq changed 0 *most-fetched*)
                     gone '()
-                    new-token token))
+                    new-token token
+                    cut t))
             (job-check-stop)
             ;; what changed here, sent unless it changed there too
             (let ((changed-urls (mapcar #'car changed)) (conflicts (make-hash-table :test 'equal)))
@@ -409,39 +461,43 @@ is noted in the pass and the others go on."
                                 (push (agreed-url a) changed-urls))
                                (t (refused entry "the deletion of" status))))))
                       ((null a)
-                        ;; a new entry: a new event, when it says a time
-                        (let* ((new (or uid (new-uid)))
-                               (components (entry-components entry :uid new :zone zone :now now))
-                               (target (event-url url new)))
-                          (when components
-                            (let ((text (icalendar-write (components-calendar components nil))))
-                              (multiple-value-bind (outcome etag) (put-event account target text nil)
-                                (case outcome
-                                  (:done (keep target etag text new)
-                                   (unless uid
-                                     (push (list (entry-heading-line entry) new) (calendar-pass-new-uids pass)))
-                                   (incf (calendar-pass-sent pass)))
-                                  (:changed nil)
-                                  (t (refused entry "the new event" etag))))))))
+                       ;; a new entry: a new event, when it says a time
+                       (let* ((new (or uid (new-uid)))
+                              (components (entry-components entry :uid new :zone zone :now now))
+                              (target (event-url url new)))
+                         (when components
+                           (let ((text (icalendar-write (components-calendar components nil))))
+                             (multiple-value-bind (outcome etag) (put-event account target text nil)
+                               (case outcome
+                                 (:done (keep target etag text new)
+                                  (unless uid
+                                    (push (list (entry-heading-line entry) new) (calendar-pass-new-uids pass)))
+                                  (incf (calendar-pass-sent pass)))
+                                 (:changed (refused entry "the new event" "an event is at its address already"))
+                                 (t (refused entry "the new event" etag))))))))
+                      ;; an entry unchanged since it last agreed with its event: nothing to send
+                      ((eql (agreed-hash a) (string-hash (entry-text entry))))
                       (t
-                        (let* ((was (agreed-calendar directory a))
-                               (now-components (entry-components entry :agreed was :zone zone :now now)))
-                          ;; an entry saying no event at all sends nothing: the calendar's stands
-                          (unless (or (null now-components)
-                                      (same-events-p now-components (and was (calendar-events was))))
-                            (if (member (agreed-url a) changed-urls :test #'string=)
-                                (setf (gethash uid conflicts) (entry-text entry))
-                                (let ((text (icalendar-write (components-calendar now-components was))))
-                                  (multiple-value-bind (outcome etag) (put-event account
-                                                                                 (agreed-url a)
-                                                                                 text
-                                                                                 (agreed-etag a))
-                                    (case outcome
-                                      (:done (keep (agreed-url a) etag text uid)
-                                       (incf (calendar-pass-sent pass)))
-                                      (:changed (setf (gethash uid conflicts) (entry-text entry))
-                                       (push (agreed-url a) changed-urls))
-                                      (t (refused entry "the change of" etag)))))))))))))
+                       (let* ((hash (string-hash (entry-text entry)))
+                              (was (agreed-calendar directory a))
+                              (now-components (entry-components entry :agreed was :zone zone :now now)))
+                         (cond
+                           ;; an entry saying no event at all sends nothing: the calendar's stands
+                           ((null now-components))
+                           ((same-events-p now-components (and was (calendar-events was)))
+                            (setf (agreed-hash a) hash (calendar-pass-kept pass) t))
+                           ((member (agreed-url a) changed-urls :test #'string=)
+                            (setf (gethash uid conflicts) (entry-text entry)))
+                           (t
+                            (let ((text (icalendar-write (components-calendar now-components was))))
+                              (multiple-value-bind (outcome etag)
+                                  (put-event account (agreed-url a) text (agreed-etag a))
+                                (case outcome
+                                  (:done (keep (agreed-url a) etag text uid hash)
+                                   (incf (calendar-pass-sent pass)))
+                                  (:changed (setf (gethash uid conflicts) (entry-text entry))
+                                   (push (agreed-url a) changed-urls))
+                                  (t (refused entry "the change of" etag)))))))))))))
               ;; what changed there, fetched and written as entries here, in the background
               (dolist (event (fetch-events account calendar (remove-duplicates changed-urls :test #'string=)))
                 (job-check-stop)
@@ -467,6 +523,10 @@ is noted in the pass and the others go on."
                     (push (agreed-uid a) (calendar-pass-gone pass))
                     (forget gone-url))))
               (setf (calendar-pass-token pass) new-token
+                    ;; the rest of what changed there is fetched next time, whatever the ctag says
+                    (calendar-pass-ctag pass) (and (not cut) (getf calendar :ctag))
+                    (calendar-pass-kept pass) (or (calendar-pass-kept pass) (not (equal new-token token))
+                                                  (not (equal ctag (calendar-pass-ctag pass))))
                     (calendar-pass-events pass) (loop for a being the hash-values of by-url collect a)
                     ;; deleted here: agreed, but no entry and nothing coming to make one
                     (calendar-pass-missing pass)
@@ -475,8 +535,7 @@ is noted in the pass and the others go on."
                                                           (calendar-pass-incoming pass)
                                                           :key #'first
                                                           :test #'equal))))
-                              (calendar-pass-events pass))))))))
-    pass))
+                              (calendar-pass-events pass))))))))))
 
 ;;; Written into the file
 
@@ -569,7 +628,8 @@ The entries' texts are made by the sync; here they are only put in place."
 
 (defun fetch-subscription (subscription &key (zone (system-time-zone)) (now (get-universal-time)))
   "Fetch SUBSCRIPTION, a calendar file at an address, and write it as its Org
-file in the cache (SUBSCRIPTION-PATH), made again each time; how many events it holds."
+file in the cache (SUBSCRIPTION-PATH), made again each time; how many events it
+holds."
   (multiple-value-bind (status headers text) (request '() "GET" (getf subscription :url))
     (declare (ignore headers))
     (unless (ok-status-p status) (caldav-fail "~a answered ~a" (getf subscription :url) status))
@@ -581,7 +641,9 @@ file in the cache (SUBSCRIPTION-PATH), made again each time; how many events it 
                          (incf count n))))))
       (replace-file (subscription-path subscription)
                     (format nil
-                            "#+title: ~a~%# Made by caldav from ~a: written again at each sync, so changed here only until then.~%* ~a~%~a"
+                            "#+title: ~a~%~
+                             # Made by caldav from ~a: written again at each sync, so changed here only until then.~%~
+                             * ~a~%~a"
                             (heading-words (getf subscription :name)) (field (getf subscription :url))
                             (heading-words (getf subscription :name)) entries))
       count)))

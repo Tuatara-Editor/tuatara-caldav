@@ -14,11 +14,26 @@
 (in-package #:caldav)
 
 (defparameter *icalendar-most-occurrences* 10000
-  "The most occurrences of one rule worked out at once: past them the rest are left.")
+  "The most occurrences of one rule worked out at once: past them the rest are
+left.")
 
 (defparameter *icalendar-most-periods* 1000000
   "The most periods of one rule looked through at once, occurrences or not:
 a rule that gives none for that long gives no more.")
+
+(defparameter *icalendar-most-periods-together* 4000000
+  "The most periods the rules of one calendar file, or of one sync of a
+calendar, look through together: past them no rule gives more times.")
+
+(defvar *recur-periods-left* nil
+  "How many periods the rules worked out now may still look through
+together (*ICALENDAR-MOST-PERIODS-TOGETHER*), or NIL for no such bound.")
+
+(defmacro with-periods-together (&body body)
+  "Run BODY with the rules worked out in it looking through at most
+*ICALENDAR-MOST-PERIODS-TOGETHER* periods together."
+  `(let ((*recur-periods-left* *icalendar-most-periods-together*))
+     ,@body))
 
 (defparameter *recur-levels* '(:secondly 0 :minutely 1 :hourly 2 :daily 3 :weekly 4 :monthly 5 :yearly 6)
   "A rule's frequencies by the size of their periods, smallest 0.")
@@ -31,14 +46,15 @@ the first week with four of its days or more in YEAR."
     (if (<= (- first start) 3) start (+ start 7))))
 
 (defun matches-number (n count list)
-  "True when N, 1 to COUNT, is in LIST as itself or as N minus COUNT minus 1, counted from the end."
+  "True when N, 1 to COUNT, is in LIST as itself or as N minus COUNT minus 1,
+counted from the end."
   (or (member n list) (member (- n count 1) list)))
 
 (defun day-allowed (recur day year days &key month-days week-days)
-  "True when the BY- parts of the day of RECUR allow DAY in the period of
-year YEAR: month part (BYMONTH), week number part (BYWEEKNO), day of the year part (BYYEARDAY), day of
-the month part (BYMONTHDAY) and weekday part (BYDAY). DAYS are
-RECUR's BY-DAY as used, MONTH-DAYS its BY-MONTH-DAY as used, WEEK-DAYS the
+  "True when the BY- parts of the day of RECUR allow DAY in the period of year
+YEAR: month part (BYMONTH), week number part (BYWEEKNO), day of the year part
+\(BYYEARDAY), day of the month part (BYMONTHDAY) and weekday part (BYDAY). DAYS
+are RECUR's BY-DAY as used, MONTH-DAYS its BY-MONTH-DAY as used, WEEK-DAYS the
 weekdays any ordinal allows."
   (multiple-value-bind (y m d) (day-date day)
     (let ((freq (ical-recur-freq recur)))
@@ -91,13 +107,15 @@ period's year."
     (:daily (let ((first (+ period-start (* k interval))))
               (values first 1 (day-date first))))))
 
-(defun recur-expand (recur start from to &key (universal #'identity) date)
+(defun recur-expand (recur start from to &key (universal #'identity) date (most *icalendar-most-occurrences*))
   "The occurrences of RECUR from START, the first, a local time, whose
 universal times (UNIVERSAL of each local time) are at FROM or after and
 before TO: a list of local times in order. DATE true when START is a date
 alone, so every occurrence's time of day is 0. COUNT and UNTIL count from
-START; at most *ICALENDAR-MOST-OCCURRENCES* are given and
-*ICALENDAR-MOST-PERIODS* periods looked through."
+START; at most MOST are given, *ICALENDAR-MOST-PERIODS* periods looked
+through, and no more than *RECUR-PERIODS-LEFT* when it is set. A rule with a
+COUNT and no BY- part, one time to each period, starts at the period of FROM,
+the times before it counted, not looked through."
   (let* ((freq (ical-recur-freq recur))
          (level (getf *recur-levels* freq))
          (interval (ical-recur-interval recur))
@@ -121,7 +139,9 @@ START; at most *ICALENDAR-MOST-OCCURRENCES* are given and
                  (day-parts (or (ical-recur-by-week-no recur) (ical-recur-by-year-day recur) by-month-day by-day))
                  ;; the first time's own day where the rule says no day
                  (by-month-day (cond ((and (eq freq :yearly) (not day-parts)) (list day0))
-                                     ((and (eq freq :monthly) (not by-month-day) (not by-day) (not (ical-recur-by-year-day recur))) (list day0))
+                                     ((and (eq freq :monthly) (not by-month-day) (not by-day)
+                                           (not (ical-recur-by-year-day recur)))
+                                      (list day0))
                                      (t by-month-day)))
                  (by-day (cond ((and (eq freq :weekly) (not by-day)) (list (cons nil (weekday start-day))))
                                ((and (eq freq :yearly) (ical-recur-by-week-no recur) (not by-day) (not by-month-day)
@@ -151,7 +171,7 @@ START; at most *ICALENDAR-MOST-OCCURRENCES* are given and
                        (let ((u (funcall universal local)))
                          (cond ((>= u to) t)
                                (t (when (>= u from) (push local found) (incf taken))
-                                  (>= taken *icalendar-most-occurrences*)))))
+                                  (>= taken most)))))
                      (times-of (day fixed-hour fixed-minute fixed-second)
                        ;; the times of DAY the rule gives, in order
                        (if date
@@ -205,9 +225,17 @@ START; at most *ICALENDAR-MOST-OCCURRENCES* are given and
                                                              :week-days week-days)
                                              nconc (times-of day nil nil nil))
                                      (* 86400 first)))))
+                     (one-a-period-p ()
+                       ;; each period gives one time, so a count of times is a count of periods
+                       (and (member freq '(:secondly :minutely :hourly :daily :weekly))
+                            (notany (lambda (part) (funcall part recur))
+                                    (list #'ical-recur-by-second #'ical-recur-by-minute #'ical-recur-by-hour
+                                          #'ical-recur-by-day #'ical-recur-by-month-day #'ical-recur-by-year-day
+                                          #'ical-recur-by-week-no #'ical-recur-by-month #'ical-recur-by-set-pos))))
                      (first-period ()
-                       ;; the first period worth looking through: none before FROM when nothing is counted
-                       (if (or count (< low start))
+                       ;; the first period worth looking through: none before FROM when nothing is counted, or
+                       ;; when what is counted is the periods themselves
+                       (if (or (and count (not (one-a-period-p))) (< low start))
                            0
                            (max 0 (1- (case freq
                                         (:yearly (floor (- (day-date (floor low 86400)) year0) interval))
@@ -220,9 +248,13 @@ START; at most *ICALENDAR-MOST-OCCURRENCES* are given and
                 (when (funcall until-past start) (return-from expanding))
                 (when (take start) (return-from expanding))
                 (when (and count (>= counted count)) (return-from expanding))
-                (loop for k from (first-period)
+                (loop with first = (first-period)
+                      initially (when (and count (> first 1)) (incf counted (1- first)))
+                      for k from first
                       repeat *icalendar-most-periods*
-                      do (multiple-value-bind (set period-start) (period-set k)
+                      do (when *recur-periods-left*
+                           (when (minusp (decf *recur-periods-left*)) (return-from expanding)))
+                         (multiple-value-bind (set period-start) (period-set k)
                            (when (> period-start high) (return-from expanding))
                            (dolist (local (picked set))
                              (when (> local start)

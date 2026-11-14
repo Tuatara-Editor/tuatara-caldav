@@ -16,8 +16,8 @@ changed."
   (let* ((buffer (calendars-buffer))
          (text (buffer-string buffer))
          (new (funcall change text)))
-    (check-writable buffer)
     (when (string/= new text)
+      (check-writable buffer)
       (put-text-by-lines buffer (buffer-text buffer) new)
       (save-buffer-with-care buffer)
       t)))
@@ -47,8 +47,11 @@ prints is never said."
         (caldav-fail "The password command of ~a: ~a is not installed" (getf account :name) (first words)))
       (multiple-value-bind (said ok) (program-output (cons program (rest words)) :seconds *password-command-seconds*)
         (let ((password (and said
-                             (string-right-trim '(#\Return)
-                                                (subseq said 0 (or (position #\Newline said) (length said)))))))
+                             (let ((end (or (position #\Newline said) (length said))))
+                               (subseq said 0 (if (and (plusp end) (char= #\Return (char said (1- end))))
+                                                  (1- end)
+                                                  end))))))
+          (when said (fill said #\Nul))
           (unless (and ok password (plusp (length password)))
             (caldav-fail "The password command of ~a gave no password: ~a ~:[failed~;printed nothing~]"
                          (getf account :name) (first words) ok))
@@ -61,7 +64,9 @@ one, else the keyring's; or a CALDAV-ERROR saying how to give it."
                       (command-password account)
                       (account-password account))))
     (unless password
-      (caldav-fail "No password for ~a in the keyring: secret-tool store --label=\"Tuatara calendars\" service tuatara-caldav user ~a, or a :password-command"
+      (caldav-fail "No password for ~a in the keyring: ~
+                    secret-tool store --label=\"Tuatara calendars\" service tuatara-caldav user ~a, ~
+                    or a :password-command"
                    (getf account :name) (getf account :user)))
     (list* :password password account)))
 
@@ -84,10 +89,13 @@ for a sync started on its own, which says nothing when nothing changed."
   :left-words "nothing written")
 
 (defmacro with-signed-in ((var account) &body body)
-  "Run BODY with the variable (VAR) holding ACCOUNT signed in (SIGNED-IN); its password wiped from
-memory when BODY ends, however it ends. Meanwhile the password is a secret at hand
-\(*SECRET-AT-HAND*), from asking for it on, in the threads started from BODY too: a failure is
-written to the debug log by its kind alone, without the calls under way or what they were given."
+  "Run BODY with the variable (VAR) holding ACCOUNT signed in (SIGNED-IN). The
+password kept there is wiped from memory when BODY ends, however it ends, as
+the copies made of it to read it and to give it to curl are once used; what
+the programs run keep of it is theirs. Meanwhile the password is a secret at
+hand (*SECRET-AT-HAND*), from asking for it on, in the threads started from
+BODY too: a failure is written to the debug log by its kind alone, without
+the calls under way or what they were given."
   `(let* ((*secret-at-hand* t)
           (,var (signed-in ,account)))
      (unwind-protect (progn ,@body)
@@ -150,19 +158,16 @@ sync that failed is seen wherever you are looking."
 next, (FAILURES . MISSING): said again only when it changes.")
 
 (defmethod job-take-in ((job caldav-job))
-  "Write what the sync fetched into the calendars' file, keep what each calendar now agrees
-with its server, and say what was done."
+  "Write what the sync fetched into the calendars' file, keep what each calendar
+now agrees with its server, and say what was done."
   (let ((passes (caldav-job-passes job)))
     ;; what each calendar agrees with its server is kept only once it is in the file
-    (when passes
-      (handler-case
-          (progn (put-into-calendars (lambda (text) (merged-text text passes)))
-                 (dolist (pass passes)
-                   (write-calendar-state (calendar-pass-directory pass)
-                                         (calendar-pass-token pass)
-                                         (calendar-pass-events pass))))
-        (error (e)
-          (push (format nil "~a not written: ~a" (abbreviated-path (sync-file-path)) e) (caldav-job-failed job)))))
+    (handler-case
+        (progn (when (some #'calendar-pass-edits-p passes)
+                 (put-into-calendars (lambda (text) (merged-text text passes))))
+               (mapc #'keep-calendar-state passes))
+      (error (e)
+        (push (format nil "~a not written: ~a" (abbreviated-path (sync-file-path)) e) (caldav-job-failed job))))
     (let* ((missing (loop for p in passes sum (calendar-pass-missing p)))
            (failed (reverse (caldav-job-failed job)))
            (quiet (caldav-job-quiet job))
@@ -174,7 +179,8 @@ with its server, and say what was done."
            (new-failures (and failed (or (not quiet) new) failed)))
       (when quiet (setf *told-last* (cons failed missing)))
       (when (or (not quiet) worked (and new (or failed (plusp missing))))
-        (message "Calendars synced: ~:d sent, ~:d fetched~:[~*~;, ~:d removed there~]~@[; ~{~a ~:d~^, ~}~]~@[; ~{~:d deleted here (~a)~}~]~@[; failed: ~{~a~^; ~}~]"
+        (message "Calendars synced: ~:d sent, ~:d fetched~:[~*~;, ~:d removed there~]~@[; ~{~a ~:d~^, ~}~]~
+                  ~@[; ~{~:d deleted here (~a)~}~]~@[; failed: ~{~a~^; ~}~]"
                 (loop for p in passes sum (calendar-pass-sent p))
                 (loop for p in passes sum (calendar-pass-fetched p))
                 (some #'calendar-pass-gone passes) (loop for p in passes sum (length (calendar-pass-gone p)))
@@ -185,17 +191,18 @@ with its server, and say what was done."
       (tell-failures "Calendars not all synced" new-failures))))
 
 (define-command caldav-sync ()
-  "Sync the calendars of your Calendaring Extensions to WebDAV (CalDAV) accounts (*caldav-accounts*) with
-the calendars' Org file (*caldav-file*), a heading each: what changed
-in an entry here is sent, what changed on the server is written into its
-entry, your own lines in it kept, and new events are added under their
-calendar. An event deleted on the server takes its entry with it, but one
-holding lines of yours stays, tagged removed, its times made inactive so
-that the agenda shows it no more; an entry deleted here is deleted on the server only when \\[caldav-deleted]
-is asked; an entry cancelled here (CANCELLED) has its event deleted there,
-and stays, tagged removed. When an event changed on both sides, the server's stands and your
-copy is kept beside it, tagged conflict. The subscriptions
-\(*caldav-subscriptions*) are fetched too. In the background."
+  "Sync the calendars of your Calendaring Extensions to WebDAV (CalDAV) accounts
+\(*caldav-accounts*) with the calendars' Org file (*caldav-file*), a heading
+each: what changed in an entry here is sent, what changed on the server is
+written into its entry, your own lines in it kept, and new events are added
+under their calendar. An event deleted on the server takes its entry with it,
+but one holding lines of yours stays, tagged removed, its times made inactive so
+that the agenda shows it no more; an entry deleted here is deleted on the server
+only when \\[caldav-deleted] is asked; an entry cancelled here (CANCELLED) has
+its event deleted there, and stays, tagged removed. When an event changed on
+both sides, the server's stands and your copy is kept beside it, tagged
+conflict. The subscriptions (*caldav-subscriptions*) are fetched too. In the
+background."
   (if (and (null *caldav-accounts*) (null *caldav-subscriptions*))
       (message "No calendars to sync: *caldav-accounts* and *caldav-subscriptions* name none")
       (take-in-soon (start-sync nil) 0 "Syncing the calendars")))
@@ -216,7 +223,8 @@ own (CALDAV-JOB), and return its job."
   "The universal time the next sync on its own is due, or NIL before the first.")
 
 (defparameter *first-sync-seconds* 10
-  "How long after Tuatara starts the first sync on its own waits, so that starting stays quick.")
+  "How long after Tuatara starts the first sync on its own waits, so that
+starting stays quick.")
 
 (defun sync-tick (editor)
   "Tick function: start a sync on its own every *CALDAV-MINUTES*, the
@@ -275,13 +283,13 @@ Tuatara reaches the server, and what it finds there. In the background."
                           (handler-case
                               (with-signed-in (signed account)
                                 (let ((calendars (account-calendars signed)))
-                                (push (list (getf account :name)
-                                            (mapcar (lambda (c) (getf c :name)) calendars)
-                                            (mapcar (lambda (c) (getf c :name)) (chosen-calendars account calendars)))
-                                      (calendar-list-job-found job))))
+                                  (push (list (getf account :name)
+                                              (mapcar (lambda (c) (getf c :name)) calendars)
+                                              (mapcar (lambda (c) (getf c :name)) (chosen-calendars account calendars)))
+                                        (calendar-list-job-found job))))
                             (error (e)
-                                   (push (format nil "~a: ~a" (getf account :name) (failure-said e))
-                                         (calendar-list-job-failed job))))))
+                              (push (format nil "~a: ~a" (getf account :name) (failure-said e))
+                                    (calendar-list-job-failed job))))))
                       :name "tuatara caldav list")
     (take-in-soon job 0 "Asking for the calendars")))
 
@@ -328,8 +336,9 @@ those that went; FAILED, what went wrong, in words."
   (dolist (missing (calendar-delete-job-deleted job))
     (destructuring-bind (directory agreed url) missing
       (declare (ignore url))
-      (multiple-value-bind (token events) (read-calendar-state directory)
-        (write-calendar-state directory token (remove (agreed-url agreed) events :key #'agreed-url :test #'string=))
+      (multiple-value-bind (token events ctag) (read-calendar-state directory)
+        (write-calendar-state directory token (remove (agreed-url agreed) events :key #'agreed-url :test #'string=)
+                              ctag)
         (ignore-errors (remove-file (path-join directory (agreed-file agreed)))))))
   (message "~:d event~:p deleted on ~:*~[their servers~;its server~:;their servers~]~@[; failed: ~{~a~^; ~}~]"
            (length (calendar-delete-job-deleted job)) (reverse (calendar-delete-job-failed job)))
@@ -359,7 +368,8 @@ the server has them."
     (cond
       ((null missing) (message "Every event synced still has its entry"))
       ((yes-or-no-p* (format nil
-                             "Delete on the server ~:d event~:p deleted here (~{~a~^, ~})? n puts ~:*~:*~[them~;it~:;them~] back"
+                             "Delete on the server ~:d event~:p deleted here (~{~a~^, ~})? ~
+                             n puts ~:*~:*~[them~;it~:;them~] back"
                              (length missing) (mapcar #'missing-title missing)))
        (let ((job (make-calendar-delete-job (current-buffer) missing)))
          (start-job-thread job #'delete-missing-work :name "tuatara caldav delete")
@@ -382,8 +392,8 @@ the server has them."
 ;;; Calendar files
 
 (defun calendar-headings (text)
-  "The calendars' headings of TEXT, the calendars' file, each a title and the calendar's web address
-(URL), as (TITLE . URL)."
+  "The calendars' headings of TEXT, the calendars' file, each a title and the
+calendar's web address (URL), as (TITLE . URL)."
   (loop for section in (calendar-sections text (file-entries text))
         collect (cons (agenda-entry-get (getf section :entry) :title) (getf section :url))))
 
@@ -392,8 +402,8 @@ the server has them."
 
 (defstruct (calendar-import-job (:include job) (:constructor make-calendar-import-job (buffer path url)) (:copier nil))
   "Reading the calendar file at PATH into the calendars' file, under the
-calendar at the web address (URL), NIL for a heading of its own: ENTRIES, its events as Org
-entries; COUNT, how many; FAILED, what went wrong, in words."
+calendar at the web address (URL), NIL for a heading of its own: ENTRIES, its
+events as Org entries; COUNT, how many; FAILED, what went wrong, in words."
   path url entries (count 0) failed)
 
 (setf (documentation 'calendar-import-job-p 'function) "True when OBJECT is a CALENDAR-IMPORT-JOB.")
@@ -444,8 +454,8 @@ heading of its own, never synced. Read in the background."
             (start-job-thread job
                               (lambda (job)
                                 (handler-case
-                                    (dolist (c (icalendar-read (octets-string (file-octets native-path
-                                                                                           :limit *icalendar-largest*))))
+                                    (dolist (c (icalendar-read
+                                                (octets-string (file-octets native-path :limit *icalendar-largest*))))
                                       (job-check-stop)
                                       (multiple-value-bind (text count) (calendar-entries c)
                                         (setf (calendar-import-job-entries job)
@@ -468,7 +478,9 @@ tags and description."
          (chosen (if region
                      (let ((from (length (buffer-string buffer :end (first region))))
                            (to (length (buffer-string buffer :end (second region)))))
-                       (remove-if-not (lambda (e) (and (< (agenda-entry-get e :position) to) (> (agenda-entry-get e :end) from))) entries))
+                       (remove-if-not (lambda (e) (and (< (agenda-entry-get e :position) to)
+                                                       (> (agenda-entry-get e :end) from)))
+                                      entries))
                      (let* ((at (length (buffer-string buffer :end (buffer-point buffer))))
                             (here (find-if (lambda (e) (<= (agenda-entry-get e :position) at)) entries :from-end t)))
                        (and here (cons here (loop for e in (rest (member here entries))
@@ -496,18 +508,20 @@ tags and description."
 
 (defparameter *new-event-form*
   (format nil
-          "* %^{Title}~%:PROPERTIES:~%:LOCATION: %^{Place (RET for none)}~%:END:~%%^T~%#+name: description~%#+begin_example~%%?~%#+end_example")
+          "* %^{Title}~%:PROPERTIES:~%:LOCATION: %^{Place (RET for none)}~%:END:~%%^T~%~
+           #+name: description~%#+begin_example~%%?~%#+end_example")
   "The form CALDAV-EVENT-NEW opens: its title, place and time asked first,
 in that order, then the description written between the block's two lines,
 where point is.")
 
 (define-command caldav-event-new ()
-  "Write a new event for one of your calendars: choose the calendar (when
-there is more than one), then give its title, its place (RET for none) and
-its time in the calendar. A form opens with point in its description: write
-it there, or nothing. \\<org-capture-mode>\\[org-capture-finalize] files the event under the calendar's
-heading, and the server gets it at the next sync; \\[org-capture-refile] files it under
-another heading, \\[org-capture-kill] throws it away."
+  "Write a new event for one of your calendars: choose the calendar (when there
+is more than one), then give its title, its place (RET for none) and its time in
+the calendar. A form opens with point in its description: write it there, or
+nothing. \\<org-capture-mode>\\[org-capture-finalize] files the event under the
+calendar's heading, and the server gets it at the next sync;
+\\[org-capture-refile] files it under another heading, \\[org-capture-kill]
+throws it away."
   (let ((headings (calendar-headings (buffer-string (calendars-buffer)))))
     (if (null headings)
         (message "No calendars synced yet: ~a syncs them" (substitute-command-keys "\\<org-mode>\\[caldav-sync]"))

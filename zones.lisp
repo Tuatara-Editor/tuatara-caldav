@@ -11,12 +11,14 @@
 (in-package #:caldav)
 
 (defparameter *zone-years* 2100
-  "The last year a time zone's changes are worked out to when its rules are none a yearly rule can say.")
+  "The last year a time zone's changes are worked out to when its rules are none
+a yearly rule can say.")
 
 (defun rule-day-of-recur (recur)
-  "The day of a ZONE-RULE that RECUR, a rule of a time zone (VTIMEZONE) observance, says:
-yearly in one month on the Nth or last weekday, or on the weekday of seven
-days in a row beginning on the 1st, 8th, 15th or 22nd; NIL for any other."
+  "The day of a ZONE-RULE that RECUR, a rule of a time zone (VTIMEZONE)
+observance, says: yearly in one month on the Nth or last weekday, or on the
+weekday of seven days in a row beginning on the 1st, 8th, 15th or 22nd; NIL for
+any other."
   (let ((months (ical-recur-by-month recur))
         (days (ical-recur-by-day recur))
         (month-days (ical-recur-by-month-day recur)))
@@ -35,14 +37,17 @@ days in a row beginning on the 1st, 8th, 15th or 22nd; NIL for any other."
                    (list :month (first months) (1+ (floor low 7)) wd)))))))))
 
 (defparameter *longest-zone-name* 200
-  "The longest name of a time zone looked for: a time zone identifier (TZID) longer is no zone's.")
+  "The longest name of a time zone looked for: a time zone identifier (TZID)
+longer is no zone's.")
 
 (defparameter *most-observances* 100
-  "The most observances (STANDARD and DAYLIGHT) of one time zone (VTIMEZONE) read; the rest are passed over.")
+  "The most observances (STANDARD and DAYLIGHT) of one time zone (VTIMEZONE)
+read; the rest are passed over.")
 
 (defun vtimezone-zone (component)
-  "The time zone COMPONENT, a time zone (VTIMEZONE), says, named by its time zone identifier (TZID); NIL when it
-says none. *MOST-OBSERVANCES* of it are read at most."
+  "The time zone COMPONENT, a time zone (VTIMEZONE), says, named by its time
+zone identifier (TZID); NIL when it says none. *MOST-OBSERVANCES* of it are read
+at most."
   (let ((observances '()))
     (dolist (o (let ((all (ical-components-of component))) (subseq all 0 (min (length all) *most-observances*))))
       (let ((start (ical-property-time (ical-property-of o "DTSTART")))
@@ -102,15 +107,17 @@ says none. *MOST-OBSERVANCES* of it are read at most."
                          rule)))))
 
 (defun calendar-vtimezone (calendar tzid)
-  "CALENDAR's own time zone (VTIMEZONE) whose time zone identifier (TZID) is TZID, or NIL."
+  "CALENDAR's own time zone (VTIMEZONE) whose time zone identifier (TZID) is
+TZID, or NIL."
   (find tzid (ical-components-of calendar "VTIMEZONE")
         :key (lambda (c) (ical-text (or (ical-value-of c "TZID") ""))) :test #'string=))
 
 (defun calendar-zones (calendar)
-  "A function of the name in a time zone identifier (TZID) giving the time zone it names in CALENDAR, a
-calendar (VCALENDAR): its own time zone (VTIMEZONE) of that name first, then the system's zone of
-that name, or of the name's end (/mozilla.org/20050126_1/Europe/Stockholm is
-Europe/Stockholm); NIL for a name of no zone. Each zone is read once."
+  "A function of the name in a time zone identifier (TZID) giving the time zone
+it names in CALENDAR, a calendar (VCALENDAR): its own time zone (VTIMEZONE) of
+that name first, then the system's zone of that name, or of the name's end
+\(/mozilla.org/20050126_1/Europe/Stockholm is Europe/Stockholm); NIL for a name
+of no zone. Each zone is read once."
   (let ((own (make-hash-table :test 'equal)) (read (make-hash-table :test 'equal)))
     (dolist (c (ical-components-of calendar "VTIMEZONE"))
       (let ((name (ical-value-of c "TZID")))
@@ -131,16 +138,16 @@ Europe/Stockholm); NIL for a name of no zone. Each zone is read once."
 ;;; Written
 
 (defun rule-day-recur (day)
-  "The rule of recurrence of a time zone (VTIMEZONE) observance for DAY, a ZONE-RULE's day: an
-ICAL-RECUR, or NIL for one it cannot say."
+  "The rule of recurrence of a time zone (VTIMEZONE) observance for DAY, a
+ZONE-RULE's day: an ICAL-RECUR, or NIL for one it cannot say."
   (when (eq (first day) :month)
     (destructuring-bind (month week wd) (rest day)
       (make-ical-recur :yearly :by-month (list month) :by-day (list (cons (if (= week 5) -1 week) wd))))))
 
 (defun zone-vtimezone (zone &key (first-year 1970) (last-year *zone-years*))
-  "A time zone (VTIMEZONE) component for ZONE, a time zone with a name, from its yearly
-rule: an observance for standard time, and one for summer time when it has
-it, by rule, or by dates FIRST-YEAR to LAST-YEAR where no rule can say it."
+  "A time zone (VTIMEZONE) component for ZONE, a time zone with a name, from its
+yearly rule: an observance for standard time, and one for summer time when it
+has it, by rule, or by dates FIRST-YEAR to LAST-YEAR where no rule can say it."
   (let ((rule (time-zone-rule zone))
         (name (or (time-zone-name zone) "UTC")))
     (flet ((observance (kind day time from to label)
@@ -156,11 +163,14 @@ it, by rule, or by dates FIRST-YEAR to LAST-YEAR where no rule can say it."
                                               (list (make-ical-property "TZNAME" (ical-text-escaped label))))
                                             (if recur
                                                 (list (make-ical-property "RRULE" (ical-recur-text recur)))
-                                                (list (make-ical-property "RDATE"
-                                                                          (format nil "~{~a~^,~}"
-                                                                                  (loop for year from (1+ first-year) to last-year
-                                                                                        for at = (+ (* 86400 (rule-day day year)) time)
-                                                                                        collect (ical-time-text (make-ical-time (floor at 86400) (mod at 86400)))))))))))))
+                                                (list (make-ical-property
+                                                       "RDATE"
+                                                       (format nil "~{~a~^,~}"
+                                                               (loop for year from (1+ first-year) to last-year
+                                                                     for at = (+ (* 86400 (rule-day day year)) time)
+                                                                     collect (ical-time-text
+                                                                              (make-ical-time (floor at 86400)
+                                                                                              (mod at 86400)))))))))))))
       (make-ical-component
        "VTIMEZONE"
        (list (make-ical-property "TZID" (ical-text-escaped name)))
@@ -180,11 +190,12 @@ it, by rule, or by dates FIRST-YEAR to LAST-YEAR where no rule can say it."
                                       daylight
                                       standard
                                       (zone-rule-standard-name rule)))))))
-             (t (let ((offset (if rule (zone-rule-standard-offset rule) (zone-offset zone (get-universal-time)))))
+             (t (let ((offset (if rule (zone-rule-standard-offset rule) (zone-offset zone (get-universal-time))))
+                      (label (and rule (zone-rule-standard-name rule))))
                   (list (make-ical-component "STANDARD"
                                              (append (list (make-ical-property "DTSTART" "19700101T000000")
                                                            (make-ical-property "TZOFFSETFROM" (utc-offset-text offset))
                                                            (make-ical-property "TZOFFSETTO" (utc-offset-text offset)))
-                                                     (when (and rule (plusp (length (zone-rule-standard-name rule))))
+                                                     (when (plusp (length label))
                                                        (list (make-ical-property "TZNAME"
-                                                                                 (ical-text-escaped (zone-rule-standard-name rule)))))))))))))))
+                                                                                 (ical-text-escaped label))))))))))))))

@@ -50,13 +50,15 @@ the rest (its path, at least /), as three values; NIL when it is no web address.
     (member name '("localhost" "127.0.0.1" "[::1]") :test #'string=)))
 
 (defun url-allowed-p (url)
-  "True when the web address (URL) may be reached: https, or http to this machine alone."
+  "True when the web address (URL) may be reached: https, or http to this
+machine alone."
   (multiple-value-bind (scheme host) (url-parts url)
     (and scheme (or (string= scheme "https") (own-machine-p host)))))
 
 (defun url-joined (base href)
-  "The hypertext reference (HREF), an address a server gave in answer to BASE, made whole: as it is when
-it has a scheme, on BASE's host when it begins with /, else beside BASE's path."
+  "The hypertext reference (HREF), an address a server gave in answer to BASE,
+made whole: as it is when it has a scheme, on BASE's host when it begins with /,
+else beside BASE's path."
   (cond ((url-parts href) href)
         (t (multiple-value-bind (scheme host path) (url-parts base)
              (if (uiop:string-prefix-p "/" href)
@@ -79,9 +81,21 @@ it has a scheme, on BASE's host when it begins with /, else beside BASE's path."
 and :HEADERS, :BODY, :USER and :PASSWORD, giving the answer's status, its
 headers (an alist, names in small letters) and its body, three values.")
 
-(defun curl-quoted (text)
-  "TEXT as curl's configuration writes a quoted value: a backslash before each \\ and \"."
-  (format nil "\"~a\"" (cl-ppcre:regex-replace-all "([\\\\\"])" text "\\\\\\1")))
+(defun curl-user-line (user password)
+  "The line of curl's configuration giving USER and PASSWORD, user =
+\"USER:PASSWORD\" with a backslash before each \\ and \" in them, made in one
+string and no other, for it to be wiped once curl has read it."
+  (let* ((text (concatenate 'string user ":" (or password "")))
+         (line (make-string (+ (length "user = \"\"") 1 (length text) (count-if (lambda (c) (find c "\\\"")) text))))
+         (at 0))
+    (flet ((put (c) (setf (char line at) c) (incf at)))
+      (map nil #'put "user = \"")
+      (loop for c across text
+            do (when (find c "\\\"") (put #\\))
+               (put c))
+      (put #\") (put #\Newline))
+    (fill text #\Nul)
+    line))
 
 (defun curl-headers (text)
   "The headers of the last answer in TEXT, curl's record of them: an alist,
@@ -95,60 +109,66 @@ names in small letters."
                                    (string-trim '(#\Space #\Tab #\Return) (subseq line (1+ colon)))))))
 
 (defun curl-request (method url &key headers body user password)
-  "Make the request METHOD to web address (URL) with curl, HEADERS (an alist) and BODY (text,
-or NIL) with it, signed in as USER with PASSWORD, given on curl's standard
-input: three values, the answer's status, its headers and its body."
+  "Make the request METHOD to web address (URL) with curl, HEADERS (an alist)
+and BODY (text, or NIL) with it, signed in as USER with PASSWORD, given on
+curl's standard input: three values, the answer's status, its headers and its
+body. An answer of more than *LARGEST-ANSWER* octets stops curl, whether or
+not the server says its length first."
   (let ((curl (find-program "curl")))
     (unless curl (caldav-fail "curl is not installed: syncing calendars needs it"))
     ;; a line break would end curl's line of the name and password and begin another
     (when (find-if (lambda (c) (member c '(#\Newline #\Return #\Nul)))
                    (concatenate 'string (or user "") (or password "")))
       (caldav-fail "The name or password for ~a holds a line break: not sent" url))
-    (let ((directory (new-private-directory (private-cache-directory "caldav/requests/") :hold nil)))
+    (let ((directory (new-private-directory (private-cache-directory "caldav/requests/") :hold nil))
+          (input (if user (curl-user-line user password) "")))
       (unwind-protect
            (let ((body-file (path-join directory "body"))
-                 (head-file (path-join directory "head"))
-                 (out-file (path-join directory "out")))
+                 (head-file (path-join directory "head")))
              (when body (replace-file body-file body :mode #o600))
              (multiple-value-bind (said ok)
                  (program-output (append (list curl "--disable" "--silent" "--show-error" "--proto" "=https,http"
                                                "--max-time" (princ-to-string *request-seconds*)
                                                "--max-filesize" (princ-to-string *largest-answer*)
-                                               "--request" method "--dump-header" head-file "--output" out-file
-                                               "--write-out" (format nil "%{http_code}~%%{errormsg}") "--config" "-")
+                                               "--request" method "--dump-header" head-file
+                                               "--write-out" (format nil "~%%{http_code}~%%{errormsg}")
+                                               "--config" "-")
                                          (loop for (name . value) in headers
                                                append (list "--header" (format nil "~a: ~a" name (one-line value))))
                                          (and body (list "--data-binary" (concatenate 'string "@" body-file)))
                                          (list "--" url))
-                                 :input (if user
-                                            (format nil
-                                                    "user = ~a~%"
-                                                    (curl-quoted (format nil "~a:~a" user (or password ""))))
-                                            "")
-                                 :seconds (+ 10 *request-seconds*))
-               ;; what curl wrote out: the answer's status, and on a line of its own why it failed
-               (let* ((lines (uiop:split-string (or said "") :separator (string #\Newline)))
-                      (status (ignore-errors (parse-integer (string-trim " " (first lines)))))
-                      (why (one-line (format nil "~{~a~^ ~}" (rest lines)))))
+                                 :input input
+                                 :seconds (+ 10 *request-seconds*)
+                                 :most (+ *largest-answer* 4096))
+               (multiple-value-bind (answer status why) (curl-written said)
                  (unless (and ok status (plusp status))
                    (caldav-fail "~a not reached: ~a" url
                                 (cond ((plusp (length why)) why)
                                       (said "no answer")
-                                      (t (format nil "curl gave no answer in ~d seconds" (+ 10 *request-seconds*))))))
+                                      (t (format nil "curl gave no answer of at most ~:d octets in ~d seconds"
+                                                 *largest-answer* (+ 10 *request-seconds*))))))
                  (values status
                          (curl-headers (or (ignore-errors (file-text head-file :limit *largest-answer*)) ""))
-                         (if (path-kind out-file)
-                             (handler-case (octets-string (file-octets out-file :limit *largest-answer*))
-                               (file-system-error ()
-                                                  (caldav-fail "~a answered more than ~:d octets" url *largest-answer*)))
-                             "")))))
+                         answer))))
+        (fill input #\Nul)
         (ignore-errors (delete-tree directory))))))
 
+(defun curl-written (said)
+  "What curl wrote out, SAID: the answer's body, then its status and why it
+failed on lines of their own after it. Three values: the body, the status (a
+number, or NIL) and why."
+  (let* ((said (or said ""))
+         (last (or (position #\Newline said :from-end t) 0))
+         (before (or (position #\Newline said :from-end t :end last) 0)))
+    (values (subseq said 0 before)
+            (ignore-errors (parse-integer (string-trim " " (subseq said (min (length said) (1+ before)) last))))
+            (one-line (subseq said (min (length said) (1+ last)))))))
+
 (defun request (account method url &key headers body (redirects *most-redirects*))
-  "Make the request METHOD to web address (URL) for ACCOUNT, as *TRANSPORT* does, following
-redirects to addresses that may be reached, and with ACCOUNT's password
-only to its own server: three values, the answer's
-status, its headers and its body, and the address answering as a fourth."
+  "Make the request METHOD to web address (URL) for ACCOUNT, as *TRANSPORT*
+does, following redirects to addresses that may be reached, and with ACCOUNT's
+password only to its own server: three values, the answer's status, its headers
+and its body, and the address answering as a fourth."
   (unless (url-allowed-p url)
     (caldav-fail "~a is not https, nor on this machine: not reached" url))
   ;; an account's password goes to its own server alone, whatever an answer names
@@ -173,7 +193,8 @@ status, its headers and its body, and the address answering as a fourth."
 ;;; Answers
 
 (defun element-text (element)
-  "The text of the Extensible Markup Language (XML) ELEMENT and all under it, blanks about it left out."
+  "The text of the Extensible Markup Language (XML) ELEMENT and all under it,
+blanks about it left out."
   (string-trim '(#\Space #\Newline #\Tab #\Return) (xml-all-text element)))
 
 (defun multistatus-responses (text)
@@ -202,7 +223,8 @@ status is not 2xx left out; and the answer's root element as a second value."
      root)))
 
 (defun status-number (line)
-  "The number of LINE, a Hypertext Transfer Protocol (HTTP) status line (HTTP/1.1 200 OK), or NIL."
+  "The number of LINE, a Hypertext Transfer Protocol (HTTP) status line
+\(HTTP/1.1 200 OK), or NIL."
   (let ((match (nth-value 1 (cl-ppcre:scan-to-strings "\\s(\\d{3})(\\s|$)" (concatenate 'string " " line)))))
     (and match (parse-integer (aref match 0)))))
 
@@ -216,7 +238,8 @@ status is not 2xx left out; and the answer's root element as a second value."
     (and element (element-text element))))
 
 (defun prop-href (response name)
-  "The address inside RESPONSE's property NAME (current-user-principal, calendar-home-set), or NIL."
+  "The address inside RESPONSE's property NAME (current-user-principal,
+calendar-home-set), or NIL."
   (let* ((element (prop response name))
          (href (and element (first (xml-find-all element "href" :local t)))))
     (and href (element-text href))))
@@ -230,18 +253,20 @@ status is not 2xx left out; and the answer's root element as a second value."
 
 (defparameter *propfind-home*
   "<?xml version=\"1.0\" encoding=\"utf-8\"?>
-<d:propfind xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:prop><c:calendar-home-set/></d:prop></d:propfind>"
+<d:propfind xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\">
+<d:prop><c:calendar-home-set/></d:prop></d:propfind>"
   "The request for where an account's calendars are.")
 
 (defparameter *propfind-calendars*
   "<?xml version=\"1.0\" encoding=\"utf-8\"?>
 <d:propfind xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\" xmlns:cs=\"http://calendarserver.org/ns/\">
-<d:prop><d:resourcetype/><d:displayname/><c:supported-calendar-component-set/><cs:getctag/><d:sync-token/></d:prop></d:propfind>"
+<d:prop><d:resourcetype/><d:displayname/><c:supported-calendar-component-set/><cs:getctag/><d:sync-token/>
+</d:prop></d:propfind>"
   "The request for the calendars in a directory, their names and what they hold.")
 
 (defun propfind (account url body depth)
-  "The responses to a property find (PROPFIND) of BODY at web address (URL), DEPTH deep (0 or 1), for
-ACCOUNT, and the address that answered."
+  "The responses to a property find (PROPFIND) of BODY at web address (URL),
+DEPTH deep (0 or 1), for ACCOUNT, and the address that answered."
   (multiple-value-bind (status headers answer at)
       (request account "PROPFIND" url :headers `(("Depth" . ,(princ-to-string depth))
                                                  ("Content-Type" . "application/xml; charset=utf-8"))
@@ -252,9 +277,9 @@ ACCOUNT, and the address that answered."
     (values (multistatus-responses answer) at)))
 
 (defun account-home (account)
-  "The address of ACCOUNT's calendars, as its server says (Request for Comments (RFC) 6764): its
-principal from the account's address, or from /.well-known/caldav, then the
-principal's calendar home."
+  "The address of ACCOUNT's calendars, as its server says (Request for Comments
+\(RFC) 6764): its principal from the account's address, or from
+/.well-known/caldav, then the principal's calendar home."
   (let ((url (getf account :url)))
     (flet ((principal (from)
              (multiple-value-bind (responses at) (ignore-errors (propfind account from *propfind-principal* 0))
@@ -272,11 +297,25 @@ principal's calendar home."
             (unless home (caldav-fail "~a says no calendars for ~a" principal (getf account :user)))
             (url-joined at home)))))))
 
+(defvar *account-homes* (make-hash-table :test 'equal :synchronized t)
+  "The address of each account's calendars as its server said it, by the
+account's address and user, kept while Tuatara runs (ACCOUNT-CALENDARS).")
+
 (defun account-calendars (account)
   "ACCOUNT's calendars of events or tasks, each a plist: :URL, :NAME (its
 name, or the last part of its address), :CTAG and :SYNC-TOKEN as the server
-gave them."
-  (multiple-value-bind (responses at) (propfind account (account-home account) *propfind-calendars* 1)
+gave them. Where they are is asked once (ACCOUNT-HOME, *ACCOUNT-HOMES*), and
+again only when that address fails."
+  (let* ((key (list (getf account :url) (getf account :user)))
+         (kept (gethash key *account-homes*)))
+    (or (and kept (handler-case (calendars-at account kept)
+                    (caldav-error () (remhash key *account-homes*) nil)))
+        (calendars-at account (setf (gethash key *account-homes*) (account-home account))))))
+
+(defun calendars-at (account home)
+  "The calendars of ACCOUNT in HOME, the address of its calendars, as
+ACCOUNT-CALENDARS gives them."
+  (multiple-value-bind (responses at) (propfind account home *propfind-calendars* 1)
     (loop for response in responses
           for type = (prop response "resourcetype")
           for components = (let ((set (prop response "supported-calendar-component-set")))
@@ -296,17 +335,20 @@ gave them."
 ;;; What changed
 
 (defun sync-collection-body (token)
-  "The request for what changed in a calendar since TOKEN (NIL for all), Request for Comments (RFC) 6578."
+  "The request for what changed in a calendar since TOKEN (NIL for all), Request
+for Comments (RFC) 6578."
   (format nil "<?xml version=\"1.0\" encoding=\"utf-8\"?>
-<d:sync-collection xmlns:d=\"DAV:\"><d:sync-token>~@[~a~]</d:sync-token><d:sync-level>1</d:sync-level><d:prop><d:getetag/></d:prop></d:sync-collection>"
+<d:sync-collection xmlns:d=\"DAV:\"><d:sync-token>~@[~a~]</d:sync-token><d:sync-level>1</d:sync-level>
+<d:prop><d:getetag/></d:prop></d:sync-collection>"
           (and token (xml-escape token))))
 
 (defun calendar-changes (account calendar token)
   "What changed in CALENDAR (a plist of ACCOUNT-CALENDARS) since TOKEN, a sync
-token, NIL for everything: three values, the events there now or changed,
-each (ADDRESS . ETAG) of an address and its entity tag (ETAG), the addresses of events gone, and the new token. NIL
-for the first two and :NONE for the token when the server keeps no tokens or
-refuses this one; NIL for the token when the server gives an empty one."
+token, NIL for everything: three values, the events there now or changed, each
+\(ADDRESS . ETAG) of an address and its entity tag (ETAG), the addresses of
+events gone, and the new token. NIL for the first two and :NONE for the token
+when the server keeps no tokens or refuses this one; NIL for the token when the
+server gives an empty one."
   (multiple-value-bind (status headers answer)
       (request account "REPORT" (getf calendar :url)
                :headers '(("Depth" . "1") ("Content-Type" . "application/xml; charset=utf-8"))
@@ -328,9 +370,9 @@ refuses this one; NIL for the token when the server gives an empty one."
         (values nil nil :none))))
 
 (defun calendar-etags (account calendar)
-  "Every event of CALENDAR now, each (ADDRESS . ETAG) of an address and its entity tag (ETAG), by a
-property find (PROPFIND): for a
-server that keeps no sync tokens."
+  "Every event of CALENDAR now, each (ADDRESS . ETAG) of an address and its
+entity tag (ETAG), by a property find (PROPFIND): for a server that keeps no
+sync tokens."
   (loop for response in (propfind account (getf calendar :url)
                                   "<?xml version=\"1.0\" encoding=\"utf-8\"?>
 <d:propfind xmlns:d=\"DAV:\"><d:prop><d:getetag/><d:resourcetype/></d:prop></d:propfind>" 1)
@@ -344,13 +386,14 @@ server that keeps no sync tokens."
 (defun multiget-body (urls)
   "The request for the calendar data of the events at URLS."
   (format nil "<?xml version=\"1.0\" encoding=\"utf-8\"?>
-<c:calendar-multiget xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:prop><d:getetag/><c:calendar-data/></d:prop>~{<d:href>~a</d:href>~}</c:calendar-multiget>"
+<c:calendar-multiget xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\">
+<d:prop><d:getetag/><c:calendar-data/></d:prop>~{<d:href>~a</d:href>~}</c:calendar-multiget>"
           (mapcar (lambda (url) (xml-escape (url-path url))) urls)))
 
 (defun fetch-events (account calendar urls)
-  "The events at URLS in CALENDAR, each (ADDRESS ETAG TEXT) of an address, its entity tag (ETAG) and TEXT, the calendar
-file as the server keeps it: fetched *MULTIGET-SIZE* at a time, or one by
-one from a server that will not."
+  "The events at URLS in CALENDAR, each (ADDRESS ETAG TEXT) of an address, its
+entity tag (ETAG) and TEXT, the calendar file as the server keeps it: fetched
+*MULTIGET-SIZE* at a time, or one by one from a server that will not."
   (loop for rest on urls by (lambda (l) (nthcdr *multiget-size* l))
         nconc (let ((batch (subseq rest 0 (min *multiget-size* (length rest)))))
                 (multiple-value-bind (status headers answer)
@@ -371,10 +414,10 @@ one from a server that will not."
 ;;; Sending
 
 (defun put-event (account url text etag)
-  "Put TEXT, a calendar file of one event, at web address (URL) for ACCOUNT: in place of the
-copy entity tag (ETAG) names, or as a new event when ETAG is NIL. Two values: :DONE and the
-new ETAG (NIL when the server says none), :CHANGED when the server's copy
-changed since, or :REFUSED and the status."
+  "Put TEXT, a calendar file of one event, at web address (URL) for ACCOUNT: in
+place of the copy entity tag (ETAG) names, or as a new event when ETAG is NIL.
+Two values: :DONE and the new ETAG (NIL when the server says none), :CHANGED
+when the server's copy changed since, or :REFUSED and the status."
   (multiple-value-bind (status headers)
       (request account "PUT" url
                :headers (append '(("Content-Type" . "text/calendar; charset=utf-8"))
@@ -385,8 +428,9 @@ changed since, or :REFUSED and the status."
           (t (values :refused status)))))
 
 (defun delete-event (account url etag)
-  "Delete the event at web address (URL) for ACCOUNT, if its copy is still the one entity tag (ETAG)
-names: :DONE (gone already too), :CHANGED, or :REFUSED and the status."
+  "Delete the event at web address (URL) for ACCOUNT, if its copy is still the
+one entity tag (ETAG) names: :DONE (gone already too), :CHANGED, or :REFUSED and
+the status."
   (let ((status (request account "DELETE" url :headers (and etag `(("If-Match" . ,etag))))))
     (cond ((or (ok-status-p status) (eql status 404)) :done)
           ((eql status 412) :changed)
@@ -401,4 +445,8 @@ the label service tuatara-caldav and user its :USER; NIL when there is none."
     (unless tool (caldav-fail "secret-tool is not installed: the password of ~a is kept by it" (getf account :name)))
     (multiple-value-bind (said ok)
         (program-output (list tool "lookup" "service" "tuatara-caldav" "user" (getf account :user)) :seconds 30)
-      (and ok said (plusp (length said)) (string-right-trim '(#\Newline #\Return) said)))))
+      (prog1 (and ok said (plusp (length said))
+                  (subseq said 0 (1+ (or (position-if-not (lambda (c) (member c '(#\Newline #\Return))) said
+                                                          :from-end t)
+                                         -1))))
+        (when said (fill said #\Nul))))))

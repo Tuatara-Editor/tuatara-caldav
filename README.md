@@ -6,7 +6,7 @@ Arch package, or EteSync through its own local bridge, etesync-dav, which
 keeps the calendars encrypted end to end. One of the Tuatara project's
 packages, not part of the editor.
 
-It needs Tuatara 0.90.14 or newer, and two small programs most Linux
+It needs Tuatara 0.90.28 or newer, and two small programs most Linux
 systems have already: `curl` and `secret-tool`.
 
 ## Setting it up, step by step
@@ -209,9 +209,9 @@ password; gpg-agent asks for the file's passphrase in a window of its own,
 and remembers it a while (10 minutes as standard, each use counting again,
 so syncing every minute keeps it remembered up to gpg-agent's limit, two
 hours as standard; then it asks again). The password is never
-written anywhere: it goes from gpg to curl through pipes, and is wiped from
-Tuatara's memory once the sync is over. When the command fails, Tuatara
-says so, never what the command printed.
+written anywhere: it goes from gpg to curl through pipes, and Tuatara's own
+copies of it are wiped from memory once used. When the command fails,
+Tuatara says so, never what the command printed.
 
 ### 4. Load the package in Tuatara
 
@@ -247,7 +247,9 @@ the agenda) says the names Tuatara finds:
 
 It syncs on its own: a few seconds after Tuatara starts, then every minute,
 in the background, saying nothing unless something changed or failed (a
-failure is told once, not again every minute while it lasts). Set how often
+failure is told once, not again every minute while it lasts). A sync that
+finds nothing changed costs one request for each account's calendars, and
+reads and writes nothing on your drive. Set how often
 with `*caldav-minutes*`, or `nil` (or 0) to sync only when asked:
 
 ```lisp
@@ -303,9 +305,9 @@ sync that failed is also told as a notification, on the desktop and in
 ### Why this is safe
 
 - Your password is kept by the desktop's keyring, or encrypted by GnuPG, given
-  to curl on its standard input, wiped from memory after each sync, never on its
-  command line or in a file, and sent only to the server's own address, whatever
-  the server's answers name.
+  to curl on its standard input, Tuatara's copies wiped from memory once used,
+  never on its command line or in a file, and sent only to the server's own
+  address, whatever the server's answers name.
 - Tuatara talks https to every other computer, and plain http only to
   this one; with Tailscale the calendars travel inside your own private,
   encrypted network as well.

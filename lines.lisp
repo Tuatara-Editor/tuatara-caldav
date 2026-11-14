@@ -28,19 +28,22 @@ and on which line."))
   "The most characters of a calendar file read: a larger one is refused.")
 
 (defparameter *icalendar-deepest* 20
-  "The most components of a calendar file read one within another: deeper is refused.")
+  "The most components of a calendar file read one within another: deeper is
+refused.")
 
 (defstruct (ical-property (:constructor make-ical-property (name value &optional parameters)))
-  "A property of a calendar file's component: its NAME in capitals, such as start (DTSTART),
-its VALUE as written (a string, escapes kept), and its PARAMETERS, a list of
-\(NAME . VALUES), the name in capitals and VALUES a list of strings."
+  "A property of a calendar file's component: its NAME in capitals, such as
+start (DTSTART), its VALUE as written (a string, escapes kept), and its
+PARAMETERS, a list of (NAME . VALUES), the name in capitals and VALUES a list
+of strings."
   (name "" :type string)
   (value "" :type string)
   (parameters nil :type list))
 
 (defstruct (ical-component (:constructor make-ical-component (name &optional properties components)))
-  "A component of a calendar file: its NAME in capitals, as calendar (VCALENDAR), event (VEVENT),
-its PROPERTIES in the order written, and the COMPONENTS within it."
+  "A component of a calendar file: its NAME in capitals, as calendar
+\(VCALENDAR), event (VEVENT), its PROPERTIES in the order written, and the
+COMPONENTS within it."
   (name "" :type string)
   (properties nil :type list)
   (components nil :type list))
@@ -59,12 +62,13 @@ its PROPERTIES in the order written, and the COMPONENTS within it."
     (and property (ical-property-value property))))
 
 (defun ical-parameter-values-of (property name)
-  "The values of PROPERTY's parameter NAME, such as time zone identifier (TZID), a list of strings; NIL
-when it has none."
+  "The values of PROPERTY's parameter NAME, such as time zone identifier (TZID),
+a list of strings; NIL when it has none."
   (cdr (assoc name (ical-property-parameters property) :test #'string-equal)))
 
 (defun ical-parameter-of (property name)
-  "The first value of PROPERTY's parameter NAME, such as time zone identifier (TZID), or NIL."
+  "The first value of PROPERTY's parameter NAME, such as time zone identifier
+\(TZID), or NIL."
   (first (ical-parameter-values-of property name)))
 
 (defun ical-components-of (component &optional name)
@@ -76,7 +80,8 @@ when it has none."
 ;;; Reading
 
 (defun name-char-p (c)
-  "True when C may be in a property's or a parameter's name: a letter, a digit or -."
+  "True when C may be in a property's or a parameter's name: a letter, a digit
+or -."
   (or (char<= #\a c #\z) (char<= #\A c #\Z) (char<= #\0 c #\9) (char= c #\-)))
 
 (defun parameter-value-decoded (text)
@@ -93,7 +98,8 @@ when it has none."
                        (progn (write-char c out) (incf i))))))))
 
 (defun read-content-line (text number)
-  "The property TEXT, one unfolded line, writes, read at line NUMBER: an ICAL-PROPERTY."
+  "The property TEXT, one unfolded line, writes, read at line NUMBER: an
+ICAL-PROPERTY."
   (let ((at 0) (end (length text)))
     (labels ((fail (what) (error 'icalendar-error :text what :line number))
              (name ()
@@ -122,8 +128,9 @@ when it has none."
         (make-ical-property name (subseq text (1+ at)) (nreverse parameters))))))
 
 (defun map-unfolded-lines (function text)
-  "Call FUNCTION with each line of TEXT, unfolded, and the number of the line
-it begins on; empty lines left out. Lines may end in carriage return (CR) and line feed (LF) or line feed alone."
+  "Call FUNCTION with each line of TEXT, unfolded, and the number of the line it
+begins on; empty lines left out. Lines may end in carriage return (CR) and line
+feed (LF) or line feed alone."
   (let ((end (length text)) (at 0) (number 1)
         (line (make-string-output-stream)) (line-number 1) (has nil))
     (flet ((flush ()
@@ -186,8 +193,8 @@ components deeper than *ICALENDAR-DEEPEST*."
 ;;; Writing
 
 (defun parameter-value-text (value)
-  "VALUE, a parameter's value, as written: ^ and line breaks and \" as Request for Comments (RFC)
-6868 writes them, quoted when it holds ; : or ,."
+  "VALUE, a parameter's value, as written: ^ and line breaks and \" as Request
+for Comments (RFC) 6868 writes them, quoted when it holds ; : or ,."
   (let ((encoded (if (find-if (lambda (c) (find c (load-time-value (coerce (list #\^ #\Newline #\") 'string) t))) value)
                      (with-output-to-string (out)
                        (loop for c across value
@@ -204,8 +211,8 @@ components deeper than *ICALENDAR-DEEPEST*."
     (cond ((< code #x80) 1) ((< code #x800) 2) ((< code #x10000) 3) (t 4))))
 
 (defun write-folded (line out)
-  "Write LINE to OUT folded at 75 octets, never inside a character, each line ending carriage return
-(CR) and line feed (LF)."
+  "Write LINE to OUT folded at 75 octets, never inside a character, each line
+ending carriage return (CR) and line feed (LF)."
   (let ((octets 0))
     (loop for c across line
           do (let ((size (char-octets c)))
@@ -229,9 +236,9 @@ components deeper than *ICALENDAR-DEEPEST*."
     (write-string (ical-property-value property) out)))
 
 (defun icalendar-write (components &optional stream)
-  "COMPONENTS, a list of ICAL-COMPONENT structures or one, written as a
-calendar file: to STREAM, or as a string when STREAM is NIL. Lines end carriage return (CR) and line feed (LF)
-and are folded at 75 octets."
+  "COMPONENTS, a list of ICAL-COMPONENT structures or one, written as a calendar
+file: to STREAM, or as a string when STREAM is NIL. Lines end carriage return
+\(CR) and line feed (LF) and are folded at 75 octets."
   (labels ((component (c out)
              (write-folded (concatenate 'string "BEGIN:" (ical-component-name c)) out)
              (dolist (p (ical-component-properties c)) (write-folded (property-line p) out))

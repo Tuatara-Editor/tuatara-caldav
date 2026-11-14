@@ -22,8 +22,9 @@ for a component that does not recur."
   (recurrence-id nil))
 
 (defun time-zone-of (time zones floating)
-  "The time zone TIME, an ICAL-TIME, is in: Coordinated Universal Time (UTC), the zone ZONES gives for
-its time zone identifier (TZID), or FLOATING for a floating time or a TZID of no zone."
+  "The time zone TIME, an ICAL-TIME, is in: Coordinated Universal Time (UTC),
+the zone ZONES gives for its time zone identifier (TZID), or FLOATING for a
+floating time or a TZID of no zone."
   (let ((zone (ical-time-zone time)))
     (cond ((eq zone :utc) (fixed-time-zone 0 "UTC"))
           ((stringp zone) (or (funcall zones zone) floating))
@@ -64,8 +65,9 @@ seconds (whole days for a date): three values; NIL when it has no start."
   "The components of a calendar that are its events and tasks.")
 
 (defun uid-groups (calendar &optional (kinds *event-kinds*))
-  "The components of CALENDAR of KINDS by unique identifier (UID), in the order first met: a list
-of lists, each the one recurring first and those changing its occurrences after."
+  "The components of CALENDAR of KINDS by unique identifier (UID), in the order
+first met: a list of lists, each the one recurring first and those changing its
+occurrences after."
   ;; each UID's (MASTERS . CHANGES), both in reverse, put in order once at the end
   (let ((groups (make-hash-table :test 'equal)) (order '()))
     (dolist (c (ical-components-of calendar))
@@ -89,12 +91,13 @@ of lists, each the one recurring first and those changing its occurrences after.
   (remove-if-not (lambda (c) (member (ical-component-name c) *event-kinds* :test #'string-equal))
                  (ical-components-of calendar)))
 
-(defun icalendar-occurrences (calendars from to &key (zone (system-time-zone)) (kinds *event-kinds*))
-  "The occurrences of the components of CALENDARS (a calendar (VCALENDAR) or a list of
-them) of KINDS that overlap the universal times FROM to TO, as
-ICAL-OCCURRENCE structures in order of their start. Floating times and
-dates alone are counted on ZONE's clock. A component cancelled is given too;
-its STATUS says so."
+(defun icalendar-occurrences (calendars from to &key (zone (system-time-zone)) (kinds *event-kinds*)
+                                                    (most *icalendar-most-occurrences*))
+  "The occurrences of the components of CALENDARS (a calendar (VCALENDAR) or a
+list of them) of KINDS that overlap the universal times FROM to TO, as
+ICAL-OCCURRENCE structures in order of their start, at most MOST of each rule.
+Floating times and dates alone are counted on ZONE's clock. A component
+cancelled is given too; its STATUS says so."
   (let ((found '())
         (local-from (zone-local-time zone from))
         (local-to (zone-local-time zone to)))
@@ -148,7 +151,8 @@ its STATUS says so."
                                                             window-from
                                                             window-to
                                                             :universal universal
-                                                            :date date))
+                                                            :date date
+                                                            :most most))
                                   (let ((u (funcall universal start-local)))
                                     (and (>= u window-from) (< u window-to) (list start-local)))))
                         (dolist (p (ical-properties-of master "RDATE"))

@@ -817,10 +817,7 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
          (passes (loop for c in (caldav::account-calendars account)
                        collect (caldav::sync-calendar account c (caldav::section-of sections (getf c :url))
                                                              :zone (cs-zone) :now (cs-now)))))
-    (dolist (p passes)
-      (caldav::write-calendar-state (caldav::calendar-pass-directory p)
-                                    (caldav::calendar-pass-token p)
-                                    (caldav::calendar-pass-events p)))
+    (mapc #'caldav::keep-calendar-state passes)
     (caldav::merged-text text passes)))
 
 (defun cs-puts (server)
@@ -840,7 +837,7 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
   (is string= "https://h.example/a/b.ics" (caldav::url-joined "https://h.example/a/" "b.ics"))
   (is string= "https://h.example/x/" (caldav::url-joined "https://h.example/a/b" "/x/"))
   ;; the password goes to curl quoted, never on its command line
-  (is string= "\"kiwi:p\\\"w\\\\\"" (caldav::curl-quoted "kiwi:p\"w\\"))
+  (is string= (format nil "user = \"kiwi:p\\\"w\\\\\"~%") (caldav::curl-user-line "kiwi" "p\"w\\"))
   ;; the headers of the last answer, after a redirect's
   (is equal '(("etag" . "\"7\"") ("content-type" . "text/calendar"))
       (caldav::curl-headers (format nil
@@ -1332,3 +1329,110 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
         (let ((b (tuatara.buffer:find-buffer (file-namestring file))))
           (when b (tuatara.buffer:buffer-mark-saved b) (tuatara.buffer:kill-buffer b)))
         (uiop:delete-file-if-exists file)))))
+
+(define-test (caldav endless-answer-stopped)
+  ;; a server sending without end, its length never said, is stopped at the most an answer may hold, not
+  ;; written to the drive until the time runs out; the password given to curl is wiped once used
+  (with-test-directory (dir)
+    (let ((curl (namestring (merge-pathnames "curl" dir))) (given '()))
+      (alexandria:write-string-into-file
+       (format nil "#!/bin/sh~%out=/dev/stdout~%while [ $# -gt 0 ]; do [ \"$1\" = --output ] && out=$2; shift; done~%~
+                    cat > /dev/null~%exec yes kea > \"$out\"~%")
+       curl)
+      (sb-posix:chmod curl #o755)
+      (sb-int:encapsulate 'tuatara:program-output 'cs-given
+                          (lambda (function command &rest keys)
+                            (push (getf keys :input) given)
+                            (apply function command keys)))
+      (unwind-protect
+           (with-environment-variable ("PATH" (format nil "~a:/usr/bin:/bin" (string-right-trim "/" (namestring dir))))
+             (let ((caldav::*largest-answer* 100000) (caldav::*request-seconds* 2)
+                   (start (get-internal-real-time)))
+               (fail (caldav::curl-request "GET" "https://cal.example.invalid/" :user "kiwi" :password "pw")
+                     'caldav::caldav-error)
+               (true (< (- (get-internal-real-time) start) (* 6 internal-time-units-per-second)))))
+        (sb-int:unencapsulate 'tuatara:program-output 'cs-given))
+      (true (and given (stringp (first given)) (plusp (length (first given)))
+                 (every (lambda (c) (char= c (code-char 0))) (first given)))))))
+
+(define-test (caldav password-read-wiped)
+  ;; what the password command printed is wiped once the password is taken from it
+  (let ((said '()))
+    (sb-int:encapsulate 'tuatara:program-output 'cs-said
+                        (lambda (function &rest arguments)
+                          (let ((values (multiple-value-list (apply function arguments))))
+                            (push (first values) said)
+                            (values-list values))))
+    (unwind-protect
+         (is string= "dav-password" (caldav::command-password '(:name "E" :password-command "printf dav-password")))
+      (sb-int:unencapsulate 'tuatara:program-output 'cs-said))
+    (true (every (lambda (c) (char= c (code-char 0))) (first said)))))
+
+(define-test (caldav names-of-one-octet-a-character)
+  ;; a name made from a long text in any script stays within what a file system takes
+  (dolist (letter (list #\x (code-char #x416) (code-char #x4E2D)))
+    (let ((name (caldav::safe-name (make-string 150 :initial-element letter))))
+      (true (<= (length (tuatara.text:string-octets name)) 255)))))
+
+(defun cs-pass (server text)
+  "What syncing the first calendar of SERVER with TEXT, the calendars' file, does: its CALENDAR-PASS."
+  (let* ((caldav::*transport* (cs-transport server))
+         (account '(:name "Home" :url "https://cal.example.org/" :user "kiwi" :password "p\"w"))
+         (sections (caldav::calendar-sections text (caldav::file-entries text)))
+         (calendar (first (caldav::account-calendars account))))
+    (caldav::sync-calendar account calendar (caldav::section-of sections (getf calendar :url))
+                           :zone (cs-zone) :now (cs-now))))
+
+(define-test (caldav quiet-sync-does-nothing)
+  ;; once an entry agrees with its event, a sync that finds nothing changed reads no copy of an event, writes
+  ;; nothing, and asks the server only for its calendars, not where they are
+  (with-cs-state ()
+    (let ((server (make-cs-server)) (caldav::*account-homes* (make-hash-table :test 'equal)) (read 0))
+      (cs-server-put server "/kiwi/home/walk.ics"
+                     (cs-event-text "UID:walk@example.org" "SUMMARY:Walk" "DTSTART;VALUE=DATE:20261120"))
+      (let ((text (cs-sync server "")))
+        (setf text (cs-sync server text))
+        (setf (cs-server-requests server) '())
+        (sb-int:encapsulate 'caldav::agreed-calendar 'cs-read (lambda (function &rest arguments)
+                                                                 (incf read)
+                                                                 (apply function arguments)))
+        (unwind-protect
+             (let ((pass (cs-pass server text)))
+               (is = 0 read)
+               (false (caldav::calendar-pass-kept pass))
+               (false (caldav::calendar-pass-edits-p pass))
+               (is = 1 (count "PROPFIND" (cs-server-requests server) :key #'first :test #'string=)))
+          (sb-int:unencapsulate 'caldav::agreed-calendar 'cs-read))))))
+
+(define-test (caldav new-entry-already-on-the-server-told)
+  ;; an entry with a UID the state does not know, whose event is on the server already, is said refused
+  (with-cs-state ()
+    (let* ((server (make-cs-server))
+           (url "https://cal.example.org/kiwi/home/")
+           (text (format nil "* Home~%:PROPERTIES:~%:CALENDAR: ~a~%:END:~%** Walk~%:PROPERTIES:~%~
+                              :UID: walk@example.org~%:END:~%<2026-11-21 Sat>~%" url)))
+      (cs-server-put server (subseq (caldav::event-url url "walk@example.org") (length "https://cal.example.org"))
+                     (cs-event-text "UID:walk@example.org" "SUMMARY:Walk" "DTSTART;VALUE=DATE:20261120"))
+      (let ((pass (cs-pass server text)))
+        (true (find-if (lambda (f) (search "refused the new event Walk" f)) (caldav::calendar-pass-failed pass))
+              "failed: ~a" (caldav::calendar-pass-failed pass))))))
+
+(define-test (caldav counted-rule-starts-where-asked)
+  ;; a rule of seconds counted in thousands of millions, begun years before, gives the times asked for at once
+  (let ((start (get-internal-real-time))
+        (times (cs-recur-times "FREQ=SECONDLY;COUNT=1000000000" "20240101T000000"
+                               :from "20261113T100000" :to "20261113T100003")))
+    (is equal '("20261113T100000" "20261113T100001" "20261113T100002") times)
+    (true (< (- (get-internal-real-time) start) (floor internal-time-units-per-second 2))))
+  ;; its count still ends it: a million seconds from the start are long over
+  (is equal '() (cs-recur-times "FREQ=SECONDLY;COUNT=1000000" "20240101T000000"
+                                :from "20261113T100000" :to "20261113T100003")))
+
+(define-test (caldav periods-bounded-together)
+  ;; rules that give nothing for long look through no more periods together than a file may take
+  (let ((caldav::*recur-periods-left* 1000) (start (get-internal-real-time)))
+    (dotimes (i 50)
+      (is equal '() (cs-recur-times "FREQ=DAILY;BYMONTH=2;BYMONTHDAY=30" "20000101T000000"
+                                    :from "20010101T000000")))
+    (true (minusp caldav::*recur-periods-left*))
+    (true (< (- (get-internal-real-time) start) (floor internal-time-units-per-second 2)))))
