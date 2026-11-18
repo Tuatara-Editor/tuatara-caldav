@@ -1,6 +1,6 @@
 ;;;; caldav.lisp --- The caldav package: the agenda shared with other calendars over CalDAV.
 ;;;; Copyright (C) 2026 Michael A Jones.  GPL-3.0-or-later; see LICENSE.
-;;;; Needs: Tuatara 0.90.28
+;;;; Needs: Tuatara 0.90.34
 ;;;;
 ;;;; One line in the init file loads it: (load-package "caldav").
 
@@ -66,10 +66,11 @@ The first sync is a few seconds after Tuatara starts, then every so many
 minutes, in the background, saying nothing unless something changed or failed
 \(a failure is told once, not again while it lasts). Never more often than once
 a minute.
-- a number above 0: the minutes between syncs.
+- a time above 0: minutes, or words such as \"30m\" or \"1h\"; the time between
+  syncs. 1 by default.
 - 0 or less: sync only when asked.
 - nil: sync only when asked (\\[caldav-sync])."
-  :values (or (member nil) number))
+  :values (or (member nil) (minutes * *)))
 
 (define-package-setting *caldav-subscriptions* '()
   "Calendar files at an address, read into the agenda and never sent back.

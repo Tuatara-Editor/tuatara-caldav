@@ -6,7 +6,7 @@ Arch package, or EteSync through its own local bridge, etesync-dav, which
 keeps the calendars encrypted end to end. One of the Tuatara project's
 packages, not part of the editor.
 
-It needs Tuatara 0.90.28 or newer, and two small programs most Linux
+It needs Tuatara 0.90.34 or newer, and two small programs most Linux
 systems have already: `curl` and `secret-tool`.
 
 ## Setting it up, step by step
@@ -250,7 +250,8 @@ in the background, saying nothing unless something changed or failed (a
 failure is told once, not again every minute while it lasts). A sync that
 finds nothing changed costs one request for each account's calendars, and
 reads and writes nothing on your drive. Set how often
-with `*caldav-minutes*`, or `nil` (or 0) to sync only when asked:
+with `*caldav-minutes*` (minutes, or words such as `"30m"`), or `nil` (or 0) to
+sync only when asked:
 
 ```lisp
 (setf *caldav-minutes* 5)
