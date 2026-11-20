@@ -15,6 +15,11 @@ changed on the server comes into the entry. The manual sets up each server,
 says where the password is kept, how the events are written as Org entries and
 what to do when a sync fails.
 
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="media/caldav-light.gif">
+  <img alt="A garden calendar from a CalDAV server synced into an Org file, an entry changed and sent back, an event added on the server coming in, and the agenda showing them all." src="media/caldav.gif">
+</picture>
+
 ## What it needs
 
 - Tuatara 0.90.39 or later.
