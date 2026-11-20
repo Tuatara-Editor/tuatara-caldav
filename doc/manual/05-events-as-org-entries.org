@@ -1,0 +1,59 @@
+#+title: Events as Org entries
+#+language: en
+
+* Events as Org entries
+
+How an event or task of a calendar is written as an Org heading.
+
+Each event or task is one heading. Its UID is kept in the =UID= property.
+
+- =SUMMARY= is the heading.
+- =DTSTART=, =DTEND= and =DURATION= are an active timestamp on your computer's
+  clock, such as =<2026-11-03 Tue 09:00-10:00>=, a range for several days.
+- A weekly, monthly or yearly rule that Org's repeater can say is the repeater:
+  =+1w=, =+2w=, =+1m=, =+1y=.
+- A rule such as the second Tuesday, Mondays and Fridays, every other week on
+  two days, three times only, or until a day is a date by rule, as the repeat
+  menu of the date prompt writes it (~C-c C-s~, then ~C-r~): =<%%(and
+  (diary-block 11 10 2026 1 12 2027) (diary-float t 2 2)) 18:00-20:00>=.
+- =EXDATE=, or a time changed alone, is a note in the logbook of the time
+  cancelled or moved. Cancelling one time (~C-c C-x C~) and scheduling one time
+  elsewhere (~C-c C-s~) write the same notes.
+- A rule Org cannot say, such as the last weekday of a month, is each time
+  written out within the days kept (a year back, two ahead, at most 500 times),
+  with the rule in the =RRULE= property. These times belong to the calendar and
+  are never sent back.
+- A task's =DUE=, =DTSTART= and =COMPLETED= are =TODO= with =DEADLINE=,
+  =SCHEDULED=, =DONE= and =CLOSED=.
+- =LOCATION= is the =LOCATION= property.
+- =CATEGORIES= are tags. =Public Holiday= is =Public_Holiday=.
+- =STATUS:CANCELLED= is the tag =cancelled=.
+- =DESCRIPTION= is an example block named =description=.
+
+Read back, an entry gives the same properties. Several timestamps in one entry
+are an event each, the UID of the second and later ones followed by their day.
+Everything else the calendar keeps of an event (attendees, alarms, its own
+properties) is kept as it was. Times the entry still says as the calendar did
+are sent as the calendar wrote them.
+
+Words from a calendar stay words. A title stays on one line, a description stays
+inside its block, and neither can become a heading, a link, a timestamp, a clock
+or a note the agenda reads.
+
+** Calendar files
+
+A calendar file is read into its components (a calendar, its events, tasks and
+time zones) and their properties, kept as written, so a file read and written
+again loses nothing. Lines are written folded at 75 octets, never inside a
+character.
+
+- Values are read when asked for: text with its escapes, dates and times
+  (floating, UTC, or in a named time zone), durations, offsets and rules of
+  recurrence.
+- A time zone a file names is found in the file's own definition first, then
+  among the system's (=/usr/share/zoneinfo=), the name checked to be a zone's
+  name and nothing more. One is written for a zone by its yearly rule.
+- Recurrences cover every part of a rule of recurrence, extra dates, dates taken
+  out, and occurrences changed one by one. They are expanded only within the
+  days asked for, and are checked against the examples in RFC 5545 itself.
+

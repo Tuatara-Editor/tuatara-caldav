@@ -1,0 +1,58 @@
+#+title: Safety, limits and what to do when it fails
+#+language: en
+
+* Safety, limits and what to do when it fails
+
+What the package never does, what it refuses, and how to find a fault.
+
+** Why it is safe
+
+- The password is kept by the desktop's keyring, or encrypted by GnuPG. It is
+  given to curl on its standard input, never on its command line or in a file,
+  and Tuatara's copies are wiped from memory once used. It is sent only to the
+  server's own address, whatever the server's answers name.
+- Every request goes through curl. The address is https, or http to this machine
+  alone (etesync-dav). A redirect elsewhere is not followed, and at most five
+  redirects are taken.
+- Tuatara talks https to every other computer. With Tailscale the calendars
+  travel inside your own private, encrypted network as well.
+- Radicale listens to its own computer alone, Tailscale's https address is for
+  your devices alone, and each user sees their own calendars alone.
+- Nothing a server sends is ever run. Calendar files are read as data, and their
+  words are written into Org as words.
+
+** Limits
+
+A calendar file comes from elsewhere and is never trusted.
+
+- A request is bounded at 32 MB and 60 seconds.
+- The reader refuses a calendar file larger than 16 MB, or with components
+  nested more than 20 deep.
+- No more than 10,000 occurrences of one event are worked out at once.
+
+** When nothing is said
+
+If there are no messages at all, the sync was not started. ~C-c s s~ works in an
+Org file or the agenda only, and =M-x caldav-sync= works anywhere. Start with
+~C-c s l~, which only asks the server for its calendars and says what it found,
+or why it could not.
+
+** Messages
+
+After a failed sync the message names the account or calendar and says why, in
+curl's own words when the server could not be reached (=Could not connect to
+server=, =Could not resolve host=, =Operation timed out=).
+
+- =No password for ... in the keyring=: the keyring step of chapter 3 was not
+  done for that user name, or was done for a different one than the init file
+  says.
+- =refused the name and password=: the password in the keyring is not the
+  server's. For EteSync it is the =manage get= one, not your EteSync one.
+- =not reached: Could not connect to server=: the server is not running
+  (=etesync-dav=, or =sudo systemctl status radicale=), or Tailscale is off on
+  this device (=tailscale status=).
+- =is not https, nor on this machine=: an =http://= address of another computer.
+  Use its =https://...ts.net/= address (chapter 2, B, step 7).
+- =says no calendars=: make a calendar first, in chapter 2 B step 4 or in
+  EteSync.
+

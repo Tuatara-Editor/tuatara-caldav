@@ -1,0 +1,93 @@
+#+title: What caldav is
+#+language: en
+
+* What caldav is
+
+Tuatara's agenda shared with other calendars through a CalDAV server.
+
+caldav keeps the calendars of a CalDAV server in an Org file and syncs them in
+both directions. What you add or change in an entry goes to the server, and what
+changed on the server comes into the entry. GNOME Calendar, Thunderbird and
+phones that use the same server see the same events.
+
+Two servers are described in this manual:
+
+- Radicale, which Fedora, Debian, Ubuntu and Arch package. It runs on a
+  computer of your own.
+- EteSync, through its local bridge, etesync-dav, which keeps the calendars
+  encrypted end to end.
+
+Any other CalDAV server works the same way. Chapter 2 sets up the two above,
+chapter 3 gives Tuatara the account, and chapter 4 syncs.
+
+** The programs it uses
+
+The package needs two small programs. curl makes every request to the server.
+secret-tool keeps the server's password in the desktop's keyring. Check them in
+a terminal:
+
+#+begin_example
+curl --version
+secret-tool --help
+#+end_example
+
+The README says how to install them.
+
+** The keys
+
+In Org files and in the agenda, the keys are under ~C-c s~, which Tuatara labels
+=calendars= in its key help.
+
+- ~C-c s s~ (=caldav-sync=) syncs now.
+- ~C-c s n~ (=caldav-event-new=) writes a new event.
+- ~C-c s l~ (=caldav-calendars=) lists the server's calendars.
+- ~C-c s d~ (=caldav-deleted=) deletes on the server what you deleted here.
+- ~C-c s i~ (=caldav-import=) reads a calendar file (=.ics=).
+- ~C-c s e~ (=caldav-export=) writes entries as a calendar file. It is bound in
+  Org files only.
+
+Every command also runs with ~M-x~ in any buffer. Chapter 4 says what each does.
+
+** Where the calendars are kept
+
+The calendars are in one Org file, with a heading for each calendar and its
+events under it. The setting =*caldav-file*= names the file. Its default,
+="agenda-caldav.org"=, is a file beside the first of your agenda files. The
+agenda reads it whether or not =*org-agenda-files*= names it.
+
+#+begin_src lisp
+(setf *caldav-file* "agenda-caldav.org")        ; the default
+(setf *caldav-file* "~/Documents/agenda.org")   ; among your own entries
+#+end_src
+
+A name alone is a file beside the first agenda file. A path is that file.
+
+Only the calendars' file is synced. Your own agenda file and notes are never
+read for it and never changed. When you set =*caldav-file*= to one of your
+agenda files, the calendars are headings among your own, and only what is under
+a calendar's heading (the one with a =CALENDAR= property) is synced. The rest of
+the file is left as it is.
+
+** What is kept apart from the file
+
+What each calendar last agreed with its server is kept in
+=~/.local/state/tuatara/calendars/=, never in the Org file. It holds the sync
+token and a copy of each event. The copy gives what an entry does not say: the
+attendees, alarms and properties that other programs keep are sent back as they
+were.
+
+** Subscriptions
+
+A subscription is a calendar file at an address, public holidays for example. It
+is read into the agenda and never sent back. Each one is fetched at every sync
+and written as an Org file of its own in the cache, which the agenda reads among
+its files.
+
+#+begin_src lisp
+(setf *caldav-subscriptions*
+      '((:name "Holidays" :url "https://example.org/holidays.ics")))
+#+end_src
+
+=:name= is what its heading is called and =:url= is its address, which must be
+https.
+
