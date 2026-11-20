@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src  'self'; img-src 'self' file:; script-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Safety, limits and what to do when it fails &ndash; caldav Manual</title>
+<link rel="icon" href="tuatara.png">
+<link rel="stylesheet" href="manual.css">
+<script src="manual.js" defer></script>
+</head>
+<body>
+<div class="site">
+<nav class="toc" id="contents" aria-label="Contents">
+<strong>caldav Manual</strong>
+<small>for Tuatara 0.90.39 and later</small>
+<p class="tools"><a href="all.html">All on one page</a>
+<button type="button" class="theme" hidden>Dark</button></p>
+<input type="search" placeholder="Search the manual" aria-label="Search the manual">
+<ol class="chapters"><li id="nav-index"><a href="index.html">0 Contents</a></li><li id="nav-01-what-caldav-is"><a href="01-what-caldav-is.html">1 What caldav is</a><ol><li><a href="01-what-caldav-is.html#the-programs-it-uses">1.1 The programs it uses</a></li><li><a href="01-what-caldav-is.html#the-keys">1.2 The keys</a></li><li><a href="01-what-caldav-is.html#where-the-calendars-are-kept">1.3 Where the calendars are kept</a></li><li><a href="01-what-caldav-is.html#what-is-kept-apart-from-the-file">1.4 What is kept apart from the file</a></li><li><a href="01-what-caldav-is.html#subscriptions">1.5 Subscriptions</a></li></ol></li><li id="nav-02-a-calendar-server"><a href="02-a-calendar-server.html">2 A calendar server</a><ol><li><a href="02-a-calendar-server.html#a-etesync-run-etesync-dav">2.1 A. EteSync: run etesync-dav</a></li><li><a href="02-a-calendar-server.html#b-your-own-radicale-reached-over-tailscale">2.2 B. Your own Radicale, reached over Tailscale</a></li><li><a href="02-a-calendar-server.html#the-same-calendars-elsewhere">2.3 The same calendars elsewhere</a></li></ol></li><li id="nav-03-accounts-and-passwords"><a href="03-accounts-and-passwords.html">3 Accounts and passwords</a><ol><li><a href="03-accounts-and-passwords.html#the-password-in-the-keyring">3.1 The password in the keyring</a></li><li><a href="03-accounts-and-passwords.html#the-password-in-a-gnupg-file">3.2 The password in a GnuPG file</a></li><li><a href="03-accounts-and-passwords.html#if-the-password-was-stored-for-calendar-sync">3.3 If the password was stored for calendar-sync</a></li><li><a href="03-accounts-and-passwords.html#loading-the-package-with-an-account">3.4 Loading the package with an account</a></li><li><a href="03-accounts-and-passwords.html#the-accounts-setting">3.5 The accounts setting</a></li></ol></li><li id="nav-04-syncing"><a href="04-syncing.html">4 Syncing</a><ol><li><a href="04-syncing.html#automatic-syncing">4.1 Automatic syncing</a></li><li><a href="04-syncing.html#syncing-at-once">4.2 Syncing at once</a></li><li><a href="04-syncing.html#what-happens-to-an-entry">4.3 What happens to an entry</a></li><li><a href="04-syncing.html#the-other-commands">4.4 The other commands</a></li><li><a href="04-syncing.html#a-new-event">4.5 A new event</a></li></ol></li><li id="nav-05-events-as-org-entries"><a href="05-events-as-org-entries.html">5 Events as Org entries</a><ol><li><a href="05-events-as-org-entries.html#calendar-files">5.1 Calendar files</a></li></ol></li><li id="nav-06-safety-limits-and-failures" class="here"><a class="here" href="06-safety-limits-and-failures.html">6 Safety, limits and what to do when it fails</a><ol><li><a href="06-safety-limits-and-failures.html#why-it-is-safe">6.1 Why it is safe</a></li><li><a href="06-safety-limits-and-failures.html#limits">6.2 Limits</a></li><li><a href="06-safety-limits-and-failures.html#when-nothing-is-said">6.3 When nothing is said</a></li><li><a href="06-safety-limits-and-failures.html#messages">6.4 Messages</a></li></ol></li><li id="nav-07-every-command-and-setting"><a href="07-every-command-and-setting.html">7 Every command and setting</a><ol><li><a href="07-every-command-and-setting.html#every-command">7.1 Every command</a></li><li><a href="07-every-command-and-setting.html#every-setting">7.2 Every setting</a></li></ol></li></ol>
+</nav>
+<main>
+<article>
+<div class="node"><span>Previous: <a href="05-events-as-org-entries.html">Events as Org entries</a></span><span>Next: <a href="07-every-command-and-setting.html">Every command and setting</a></span><span>Up: <a href="index.html">Contents</a></span></div>
+<h1 id="safety-limits-and-what-to-do-when-it-fails">Safety, limits and what to do when it fails</h1>
+<p class="lead">What the package never does, what it refuses, and how to find a fault.</p>
+<h2 id="why-it-is-safe"><span class="num">6.1</span> Why it is safe</h2>
+<ul>
+<li>The password is kept by the desktop's keyring, or encrypted by GnuPG. It is
+  given to curl on its standard input, never on its command line or in a file,
+  and Tuatara's copies are wiped from memory once used. It is sent only to the
+  server's own address, whatever the server's answers name.</li>
+<li>Every request goes through curl. The address is https, or http to this machine
+  alone (etesync-dav). A redirect elsewhere is not followed, and at most five
+  redirects are taken.</li>
+<li>Tuatara talks https to every other computer. With Tailscale the calendars
+  travel inside your own private, encrypted network as well.</li>
+<li>Radicale listens to its own computer alone, Tailscale's https address is for
+  your devices alone, and each user sees their own calendars alone.</li>
+<li>Nothing a server sends is ever run. Calendar files are read as data, and their
+  words are written into Org as words.</li>
+</ul>
+<h2 id="limits"><span class="num">6.2</span> Limits</h2>
+<p>A calendar file comes from elsewhere and is never trusted.</p>
+<ul>
+<li>A request is bounded at 32 MB and 60 seconds.</li>
+<li>The reader refuses a calendar file larger than 16 MB, or with components
+  nested more than 20 deep.</li>
+<li>No more than 10,000 occurrences of one event are worked out at once.</li>
+</ul>
+<h2 id="when-nothing-is-said"><span class="num">6.3</span> When nothing is said</h2>
+<p>If there are no messages at all, the sync was not started. <kbd>C-c s s</kbd> works in an
+Org file or the agenda only, and <code>M-x caldav-sync</code> works anywhere. Start with
+<kbd>C-c s l</kbd>, which only asks the server for its calendars and says what it found,
+or why it could not.</p>
+<h2 id="messages"><span class="num">6.4</span> Messages</h2>
+<p>After a failed sync the message names the account or calendar and says why, in
+curl's own words when the server could not be reached (<code>Could not connect to
+server</code>, <code>Could not resolve host</code>, <code>Operation timed out</code>).</p>
+<ul>
+<li><code>No password for ... in the keyring</code>: the keyring step of chapter 3 was not
+  done for that user name, or was done for a different one than the init file
+  says.</li>
+<li><code>refused the name and password</code>: the password in the keyring is not the
+  server's. For EteSync it is the <code>manage get</code> one, not your EteSync one.</li>
+<li><code>not reached: Could not connect to server</code>: the server is not running
+  (<code>etesync-dav</code>, or <code>sudo systemctl status radicale</code>), or Tailscale is off on
+  this device (<code>tailscale status</code>).</li>
+<li><code>is not https, nor on this machine</code>: an <code>http://</code> address of another computer.
+  Use its <code>https://...ts.net/</code> address (chapter 2, B, step 7).</li>
+<li><code>says no calendars</code>: make a calendar first, in chapter 2 B step 4 or in
+  EteSync.</li>
+</ul>
+<div class="node end"><span>Previous: <a href="05-events-as-org-entries.html">Events as Org entries</a></span><span>Next: <a href="07-every-command-and-setting.html">Every command and setting</a></span><span>Up: <a href="index.html">Contents</a></span></div>
+</article>
+</main>
+</div>
+</body>
+</html>

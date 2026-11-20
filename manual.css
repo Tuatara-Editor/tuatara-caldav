@@ -1,0 +1,164 @@
+:root {  --bg: #ffffff;
+  --panel: #f0f0f0;
+  --fg: #222222;
+  --soft: #5d5d5d;
+  --rule: #c1c1c1;
+  --accent: #1565c0;
+  --key-bg: #d9e2f0;
+  --note: #e7f0fb;
+  --ml: #2c5484;
+  --ml-fg: #f3f4f6;
+  --ml-faint: #99c7ff;
+  --amber: #ff9000;
+  --screen: #080d15;
+  --screen-fg: #dadada;
+  --screen-soft: #838a97;
+}
+@media screen and (prefers-color-scheme: dark) {
+:root:not([data-theme="light"]) {  --bg: #080d15;
+  --panel: #0d1526;
+  --fg: #dadada;
+  --soft: #838a97;
+  --rule: #254862;
+  --accent: #99c7ff;
+  --key-bg: #1f2937;
+  --note: #12253a;
+  --ml: #2c5484;
+  --ml-fg: #f3f4f6;
+  --ml-faint: #99c7ff;
+  --amber: #ff9000;
+  --screen: #0d1526;
+  --screen-fg: #dadada;
+  --screen-soft: #838a97;
+  color-scheme: dark;
+}
+}
+@media screen {
+:root[data-theme="dark"] {  --bg: #080d15;
+  --panel: #0d1526;
+  --fg: #dadada;
+  --soft: #838a97;
+  --rule: #254862;
+  --accent: #99c7ff;
+  --key-bg: #1f2937;
+  --note: #12253a;
+  --ml: #2c5484;
+  --ml-fg: #f3f4f6;
+  --ml-faint: #99c7ff;
+  --amber: #ff9000;
+  --screen: #0d1526;
+  --screen-fg: #dadada;
+  --screen-soft: #838a97;
+  color-scheme: dark;
+}
+}
+/* The look of a web page made from an Org document: a reference manual with
+   a contents column and node links above and below each page, as the Emacs
+   manual has, or one page alone. The colours are variables, given by the
+   Ao theme when the export writes the page. */
+:root {
+  --body: "Literata", Georgia, serif;
+  --head: "Familjen Grotesk", "Helvetica Neue", sans-serif;
+  --mono: "Cascadia Code", "DejaVu Sans Mono", monospace;
+}
+body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.65 var(--body); }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.site { display: grid; grid-template-columns: 250px minmax(0, 1fr); max-width: 1120px; margin: 0 auto; }
+nav.toc { border-right: 1px solid var(--rule); padding: 28px 20px; font: 15px/1.5 var(--head); }
+nav.toc strong { display: block; font-size: 20px; margin-bottom: 2px; }
+nav.toc small { color: var(--soft); display: block; margin-bottom: 18px; }
+nav.toc input { width: 100%; box-sizing: border-box; padding: 6px 8px; font: 14px var(--head); background: var(--bg);
+  color: var(--fg); border: 1px solid var(--rule); margin-bottom: 18px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+nav.toc ol ol { padding-left: 14px; margin-top: 4px; }
+nav.toc a { text-decoration: none; color: var(--fg); }
+nav.toc a.here { color: var(--accent); font-weight: 700; }
+nav.toc li > ol { display: none; }
+nav.toc li.here > ol, nav.toc.filtering li > ol { display: grid; }
+nav.toc .hidden { display: none; }
+main { padding-block: 22px 60px; padding-left: max(16px, 4vw); padding-right: 16px; min-width: 0; }
+article { max-width: 44em; }
+.node { font: 14px/1.4 var(--head); color: var(--soft); display: flex; flex-wrap: wrap; gap: 4px 18px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--rule); }
+.node.end { border-bottom: 0; border-top: 1px solid var(--rule); padding-top: 12px; margin-top: 40px; }
+h1, h2, h3, h4, h5, h6 { font-family: var(--head); line-height: 1.2; text-wrap: balance; }
+h1 { font-size: 34px; margin: 26px 0 8px; }
+h2 { font-size: 23px; margin: 36px 0 8px; }
+h3 { font-size: 19px; margin: 26px 0 6px; }
+h4, h5, h6 { font-size: 17px; margin: 22px 0 6px; }
+.lead { font-size: 19px; color: var(--soft); margin-top: 0; }
+kbd, code { font: 0.86em var(--mono); }
+kbd { background: var(--key-bg); padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+.tablewrap { overflow-x: auto; margin: 16px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 16px; }
+caption { font: 14px/1.45 var(--head); color: var(--soft); text-align: left; margin-bottom: 6px; }
+th { font: 600 14px var(--head); text-align: left; color: var(--soft); }
+th, td { padding: 7px 14px 7px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+td { overflow-wrap: anywhere; }
+td kbd, td code { white-space: normal; }
+th.right, td.right { text-align: right; }
+th.centre, td.centre { text-align: center; }
+pre.ex { background: var(--panel); padding: 12px 14px; overflow-x: auto; font: 14px/1.55 var(--mono); }
+pre.ex code { font: inherit; }
+.try { background: var(--note); padding: 14px 18px; margin: 24px 0; }
+.try h3 { margin: 0 0 6px; font-size: 17px; }
+.try ol { margin: 0; padding-left: 22px; }
+figure { margin: 26px 0; }
+figure img { max-width: 100%; height: auto; }
+figcaption { font: 14px/1.45 var(--head); color: var(--soft); margin-top: 8px; }
+.screen { background: var(--screen); color: var(--screen-fg); font: 13.5px/1.5 var(--mono); padding: 12px 0 0; overflow-x: auto; }
+.screen div { padding: 0 14px; white-space: pre; }
+.screen .ml { background: var(--ml); color: var(--ml-fg); padding-block: 1px; margin-top: 10px; }
+.screen .ml .faint { color: var(--ml-faint); }
+.screen .sign { color: var(--amber); font-weight: 600; }
+.screen .faint { color: var(--screen-soft); }
+.screen .pr { padding-block: 4px 8px; }
+.screen .pr b { color: var(--amber); font-weight: 400; }
+header.title { margin-bottom: 26px; }
+nav.contents ol { padding-left: 22px; }
+blockquote { margin: 16px 0; padding-left: 16px; border-left: 3px solid var(--rule); }
+.centre { text-align: center; }
+p.verse { white-space: pre-line; }
+.todo { color: var(--amber); font-weight: 600; }
+.tag, .timestamp, .priority { color: var(--soft); font-size: 0.85em; }
+.redacted { background: var(--fg); color: var(--fg); }
+.footnotes { border-top: 1px solid var(--rule); margin-top: 40px; font-size: 15px; }
+hr { border: 0; border-top: 1px solid var(--rule); }
+dt { font-weight: 600; }
+@media (max-width: 760px) {
+  .site { grid-template-columns: minmax(0, 1fr); }
+  nav.toc { border-right: 0; border-bottom: 1px solid var(--rule); padding-inline: 16px; }
+  nav.toc ol.chapters { max-height: 150px; overflow-y: auto; }
+}
+:root { --mono: "Cascadia Code", "Cascadia Mono", "JetBrains Mono", "Fira Code", "Source Code Pro",
+  "DejaVu Sans Mono", ui-monospace, monospace; --head: var(--mono); }
+body, code, kbd, pre, input, button { font-family: var(--mono); }
+main article p, main article li, main article dd { line-height: 1.2; }
+nav.contents a, .node a { text-decoration: none; }
+nav.toc li.here > a, nav.toc a.in-view { color: var(--accent); font-weight: 700; }
+main article h1, main article h2 { font-weight: 700; }
+main article h3, main article h4, main article h5 { font-weight: 600; }
+main article h2 { border-bottom: 3px solid var(--accent); padding-bottom: 4px; }
+nav.toc .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 0 0 14px;
+  font-size: 14px; }
+nav.toc .tools a { color: var(--accent); }
+button.theme { font-size: 13px; padding: 2px 10px; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--rule); border-radius: 4px; cursor: pointer; }
+section.chapter + section.chapter { border-top: 1px solid var(--rule); margin-top: 48px; padding-top: 8px; }
+.site { max-width: none; }
+main article { max-width: none; }
+main article td:not(:last-child) { overflow-wrap: normal; }
+main article td:not(:last-child) kbd, main article td:not(:last-child) code { white-space: nowrap; }
+@media (min-width: 761px) {
+  nav.toc { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; box-sizing: border-box;
+    border-right: 0; }
+  .site main { border-left: 1px solid var(--rule); }
+  main article { padding-inline: 5%; }
+}
+@media print {
+  nav.toc, .node { display: none; }
+  .site { display: block; max-width: none; }
+  a { color: inherit; text-decoration: none; }
+  section.chapter + section.chapter { break-before: page; border-top: 0; margin-top: 0; }
+}

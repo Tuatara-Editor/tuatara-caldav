@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src  'self'; img-src 'self' file:; script-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Syncing &ndash; caldav Manual</title>
+<link rel="icon" href="tuatara.png">
+<link rel="stylesheet" href="manual.css">
+<script src="manual.js" defer></script>
+</head>
+<body>
+<div class="site">
+<nav class="toc" id="contents" aria-label="Contents">
+<strong>caldav Manual</strong>
+<small>for Tuatara 0.90.39 and later</small>
+<p class="tools"><a href="all.html">All on one page</a>
+<button type="button" class="theme" hidden>Dark</button></p>
+<input type="search" placeholder="Search the manual" aria-label="Search the manual">
+<ol class="chapters"><li id="nav-index"><a href="index.html">0 Contents</a></li><li id="nav-01-what-caldav-is"><a href="01-what-caldav-is.html">1 What caldav is</a><ol><li><a href="01-what-caldav-is.html#the-programs-it-uses">1.1 The programs it uses</a></li><li><a href="01-what-caldav-is.html#the-keys">1.2 The keys</a></li><li><a href="01-what-caldav-is.html#where-the-calendars-are-kept">1.3 Where the calendars are kept</a></li><li><a href="01-what-caldav-is.html#what-is-kept-apart-from-the-file">1.4 What is kept apart from the file</a></li><li><a href="01-what-caldav-is.html#subscriptions">1.5 Subscriptions</a></li></ol></li><li id="nav-02-a-calendar-server"><a href="02-a-calendar-server.html">2 A calendar server</a><ol><li><a href="02-a-calendar-server.html#a-etesync-run-etesync-dav">2.1 A. EteSync: run etesync-dav</a></li><li><a href="02-a-calendar-server.html#b-your-own-radicale-reached-over-tailscale">2.2 B. Your own Radicale, reached over Tailscale</a></li><li><a href="02-a-calendar-server.html#the-same-calendars-elsewhere">2.3 The same calendars elsewhere</a></li></ol></li><li id="nav-03-accounts-and-passwords"><a href="03-accounts-and-passwords.html">3 Accounts and passwords</a><ol><li><a href="03-accounts-and-passwords.html#the-password-in-the-keyring">3.1 The password in the keyring</a></li><li><a href="03-accounts-and-passwords.html#the-password-in-a-gnupg-file">3.2 The password in a GnuPG file</a></li><li><a href="03-accounts-and-passwords.html#if-the-password-was-stored-for-calendar-sync">3.3 If the password was stored for calendar-sync</a></li><li><a href="03-accounts-and-passwords.html#loading-the-package-with-an-account">3.4 Loading the package with an account</a></li><li><a href="03-accounts-and-passwords.html#the-accounts-setting">3.5 The accounts setting</a></li></ol></li><li id="nav-04-syncing" class="here"><a class="here" href="04-syncing.html">4 Syncing</a><ol><li><a href="04-syncing.html#automatic-syncing">4.1 Automatic syncing</a></li><li><a href="04-syncing.html#syncing-at-once">4.2 Syncing at once</a></li><li><a href="04-syncing.html#what-happens-to-an-entry">4.3 What happens to an entry</a></li><li><a href="04-syncing.html#the-other-commands">4.4 The other commands</a></li><li><a href="04-syncing.html#a-new-event">4.5 A new event</a></li></ol></li><li id="nav-05-events-as-org-entries"><a href="05-events-as-org-entries.html">5 Events as Org entries</a><ol><li><a href="05-events-as-org-entries.html#calendar-files">5.1 Calendar files</a></li></ol></li><li id="nav-06-safety-limits-and-failures"><a href="06-safety-limits-and-failures.html">6 Safety, limits and what to do when it fails</a><ol><li><a href="06-safety-limits-and-failures.html#why-it-is-safe">6.1 Why it is safe</a></li><li><a href="06-safety-limits-and-failures.html#limits">6.2 Limits</a></li><li><a href="06-safety-limits-and-failures.html#when-nothing-is-said">6.3 When nothing is said</a></li><li><a href="06-safety-limits-and-failures.html#messages">6.4 Messages</a></li></ol></li><li id="nav-07-every-command-and-setting"><a href="07-every-command-and-setting.html">7 Every command and setting</a><ol><li><a href="07-every-command-and-setting.html#every-command">7.1 Every command</a></li><li><a href="07-every-command-and-setting.html#every-setting">7.2 Every setting</a></li></ol></li></ol>
+</nav>
+<main>
+<article>
+<div class="node"><span>Previous: <a href="03-accounts-and-passwords.html">Accounts and passwords</a></span><span>Next: <a href="05-events-as-org-entries.html">Events as Org entries</a></span><span>Up: <a href="index.html">Contents</a></span></div>
+<h1 id="syncing">Syncing</h1>
+<p class="lead">When calendars are synced, and what each command does.</p>
+<h2 id="automatic-syncing"><span class="num">4.1</span> Automatic syncing</h2>
+<p>The calendars sync on their own, a few seconds after Tuatara starts and then
+every minute, in the background. Nothing is said unless something changed or
+failed. A failure is told once, not again every minute while it lasts.</p>
+<p>A sync that finds nothing changed costs one request for each account's
+calendars, and reads and writes nothing on your drive.</p>
+<p><code>*caldav-minutes*</code> sets how often. Give minutes, or words such as <code>&quot;30m&quot;</code> or
+<code>&quot;1h&quot;</code>. It is never more often than once a minute. Give <code>nil</code>, or 0 or less, to
+sync only when asked.</p>
+<pre class="ex"><code class="language-lisp">(setf *caldav-minutes* 5)
+</code></pre>
+<h2 id="syncing-at-once"><span class="num">4.2</span> Syncing at once</h2>
+<p><kbd>C-c s s</kbd> (<code>caldav-sync</code>) syncs every account's calendars and fetches the
+subscriptions, in the background. The first sync writes <code>agenda-caldav.org</code>
+beside your agenda file, a heading for each calendar, and the agenda shows its
+events. In an Org file or the agenda <kbd>C-c s s</kbd> works. <code>M-x caldav-sync</code> works
+anywhere.</p>
+<p>A sync sends what you changed in an entry and fetches what changed on the server
+since the last sync, then writes it into its entry. Only the lines that differ
+are changed, as one step to undo, and the file is saved. Your own lines in an
+entry (notes, checkboxes, clocks, properties of your own) are kept when the
+server's version is written.</p>
+<p>After each sync Tuatara says what it did in one line, and what failed after
+<code>failed:</code>. <kbd>C-h e</kbd> shows the messages again. A failed sync is also told as a
+notification, on the desktop and in <code>*Notifications*</code> (<kbd>C-h N</kbd>).</p>
+<h2 id="what-happens-to-an-entry"><span class="num">4.3</span> What happens to an entry</h2>
+<ul>
+<li>New entries under a calendar's heading become events on its server. Their UID
+  is written into them.</li>
+<li>Deleted on the server: the entry is deleted too. One that holds lines of yours
+  (notes, checkboxes, clocks, properties of your own) stays. It is tagged
+  <code>removed</code> and no longer synced, and its times are made inactive
+  (<code>[2026-11-05 Thu]</code>) so the agenda shows it no more. Delete it when you are
+  done with it.</li>
+<li>Deleted here: nothing happens on the server until <kbd>C-c s d</kbd> asks you. When you
+  answer no, the entries are put back.</li>
+<li>Cancelled here (<kbd>C-c C-x C</kbd>, keyword <code>CANCELLED</code> or <code>CANCELED</code>): its event is
+  deleted on the server at the next sync, so it leaves your other devices. The
+  entry stays, tagged <code>removed</code> and no longer synced. The agenda still shows it,
+  cancelled. An entry cancelled before it was ever sent is not sent.</li>
+<li>Changed on both sides: the server's version stands in the entry, and yours is
+  kept beside it, tagged <code>conflict</code> and no longer synced. Copy what you want
+  from it and delete it.</li>
+</ul>
+<h2 id="the-other-commands"><span class="num">4.4</span> The other commands</h2>
+<p><kbd>C-c s l</kbd> (<code>caldav-calendars</code>) says the calendars each account has and which of
+them are synced. It only asks the server, so it shows that Tuatara reaches it.
+It works when nothing else does.</p>
+<p><kbd>C-c s d</kbd> (<code>caldav-deleted</code>) deletes on the server the events whose entries you
+deleted, after asking. Answer no and the entries are put back.</p>
+<p><kbd>C-c s i</kbd> (<code>caldav-import</code>) reads a calendar file (<code>.ics</code>) under one of your
+calendars, or under a heading of its own.</p>
+<p><kbd>C-c s e</kbd> (<code>caldav-export</code>) writes the entry at point and those under it, or the
+entries selected, as a calendar file. It is bound in Org files only.</p>
+<h2 id="a-new-event"><span class="num">4.5</span> A new event</h2>
+<p><kbd>C-c s n</kbd> (<code>caldav-event-new</code>, or <code>M-x caldav-event-new</code> anywhere) asks which
+calendar when you have more than one, then the event's title, its place (<kbd>RET</kbd>
+for none) and its time in the calendar. A form opens with the cursor between the
+description block's two lines. Write the description there, or nothing.</p>
+<ul>
+<li><kbd>C-c C-c</kbd> files the event under the calendar's heading, and the server gets it
+  at the next sync.</li>
+<li><kbd>C-c C-w</kbd> files it under another heading instead.</li>
+<li><kbd>C-c C-k</kbd> throws it away.</li>
+</ul>
+<p>The <code>#+name: description</code> line marks the block as the description, so leave it
+as it is. A location or description left blank is none, and nothing is sent for
+it.</p>
+<div class="node end"><span>Previous: <a href="03-accounts-and-passwords.html">Accounts and passwords</a></span><span>Next: <a href="05-events-as-org-entries.html">Events as Org entries</a></span><span>Up: <a href="index.html">Contents</a></span></div>
+</article>
+</main>
+</div>
+</body>
+</html>

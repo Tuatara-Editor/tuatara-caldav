@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src  'self'; img-src 'self' file:; script-src 'self'; base-uri 'none'; form-action 'none'">
+<title>caldav Manual, all chapters</title>
+<link rel="icon" href="tuatara.png">
+<link rel="stylesheet" href="manual.css">
+<script src="manual.js" defer></script>
+</head>
+<body>
+<div class="site">
+<nav class="toc" id="contents" aria-label="Contents">
+<strong>caldav Manual</strong>
+<small>for Tuatara 0.90.39 and later</small>
+<p class="tools"><a href="index.html">By chapter</a>
+<button type="button" class="theme" hidden>Dark</button></p>
+<input type="search" placeholder="Search the manual" aria-label="Search the manual">
+<ol class="chapters"><li id="nav-index"><a href="index.html">0 Contents</a></li><li id="nav-01-what-caldav-is"><a href="#01-what-caldav-is">1 What caldav is</a><ol><li><a href="#01-what-caldav-is--the-programs-it-uses">1.1 The programs it uses</a></li><li><a href="#01-what-caldav-is--the-keys">1.2 The keys</a></li><li><a href="#01-what-caldav-is--where-the-calendars-are-kept">1.3 Where the calendars are kept</a></li><li><a href="#01-what-caldav-is--what-is-kept-apart-from-the-file">1.4 What is kept apart from the file</a></li><li><a href="#01-what-caldav-is--subscriptions">1.5 Subscriptions</a></li></ol></li><li id="nav-02-a-calendar-server"><a href="#02-a-calendar-server">2 A calendar server</a><ol><li><a href="#02-a-calendar-server--a-etesync-run-etesync-dav">2.1 A. EteSync: run etesync-dav</a></li><li><a href="#02-a-calendar-server--b-your-own-radicale-reached-over-tailscale">2.2 B. Your own Radicale, reached over Tailscale</a></li><li><a href="#02-a-calendar-server--the-same-calendars-elsewhere">2.3 The same calendars elsewhere</a></li></ol></li><li id="nav-03-accounts-and-passwords"><a href="#03-accounts-and-passwords">3 Accounts and passwords</a><ol><li><a href="#03-accounts-and-passwords--the-password-in-the-keyring">3.1 The password in the keyring</a></li><li><a href="#03-accounts-and-passwords--the-password-in-a-gnupg-file">3.2 The password in a GnuPG file</a></li><li><a href="#03-accounts-and-passwords--if-the-password-was-stored-for-calendar-sync">3.3 If the password was stored for calendar-sync</a></li><li><a href="#03-accounts-and-passwords--loading-the-package-with-an-account">3.4 Loading the package with an account</a></li><li><a href="#03-accounts-and-passwords--the-accounts-setting">3.5 The accounts setting</a></li></ol></li><li id="nav-04-syncing"><a href="#04-syncing">4 Syncing</a><ol><li><a href="#04-syncing--automatic-syncing">4.1 Automatic syncing</a></li><li><a href="#04-syncing--syncing-at-once">4.2 Syncing at once</a></li><li><a href="#04-syncing--what-happens-to-an-entry">4.3 What happens to an entry</a></li><li><a href="#04-syncing--the-other-commands">4.4 The other commands</a></li><li><a href="#04-syncing--a-new-event">4.5 A new event</a></li></ol></li><li id="nav-05-events-as-org-entries"><a href="#05-events-as-org-entries">5 Events as Org entries</a><ol><li><a href="#05-events-as-org-entries--calendar-files">5.1 Calendar files</a></li></ol></li><li id="nav-06-safety-limits-and-failures"><a href="#06-safety-limits-and-failures">6 Safety, limits and what to do when it fails</a><ol><li><a href="#06-safety-limits-and-failures--why-it-is-safe">6.1 Why it is safe</a></li><li><a href="#06-safety-limits-and-failures--limits">6.2 Limits</a></li><li><a href="#06-safety-limits-and-failures--when-nothing-is-said">6.3 When nothing is said</a></li><li><a href="#06-safety-limits-and-failures--messages">6.4 Messages</a></li></ol></li><li id="nav-07-every-command-and-setting"><a href="#07-every-command-and-setting">7 Every command and setting</a><ol><li><a href="#07-every-command-and-setting--every-command">7.1 Every command</a></li><li><a href="#07-every-command-and-setting--every-setting">7.2 Every setting</a></li></ol></li></ol>
+</nav>
+<main>
+<article>
+<h1>caldav Manual</h1>
+<p class="lead">for Tuatara 0.90.39 and later, every chapter on one page</p>
+<p>This manual is written with modal editing on, first and foremost. Where a command also has a key that works with modal editing off, it is given as well, as the non-modal key.</p>
+<section class="chapter" id="01-what-caldav-is">
+<h1 id="01-what-caldav-is--what-caldav-is">What caldav is</h1>
+<p class="lead">Tuatara's agenda shared with other calendars through a CalDAV server.</p>
+<p>caldav keeps the calendars of a CalDAV server in an Org file and syncs them in
+both directions. What you add or change in an entry goes to the server, and what
+changed on the server comes into the entry. GNOME Calendar, Thunderbird and
+phones that use the same server see the same events.</p>
+<p>Two servers are described in this manual:</p>
+<ul>
+<li>Radicale, which Fedora, Debian, Ubuntu and Arch package. It runs on a
+  computer of your own.</li>
+<li>EteSync, through its local bridge, etesync-dav, which keeps the calendars
+  encrypted end to end.</li>
+</ul>
+<p>Any other CalDAV server works the same way. Chapter 2 sets up the two above,
+chapter 3 gives Tuatara the account, and chapter 4 syncs.</p>
+<h2 id="01-what-caldav-is--the-programs-it-uses"><span class="num">1.1</span> The programs it uses</h2>
+<p>The package needs two small programs. curl makes every request to the server.
+secret-tool keeps the server's password in the desktop's keyring. Check them in
+a terminal:</p>
+<pre class="ex">curl --version
+secret-tool --help
+</pre>
+<p>The README says how to install them.</p>
+<h2 id="01-what-caldav-is--the-keys"><span class="num">1.2</span> The keys</h2>
+<p>In Org files and in the agenda, the keys are under <kbd>C-c s</kbd>, which Tuatara labels
+<code>calendars</code> in its key help.</p>
+<ul>
+<li><kbd>C-c s s</kbd> (<code>caldav-sync</code>) syncs now.</li>
+<li><kbd>C-c s n</kbd> (<code>caldav-event-new</code>) writes a new event.</li>
+<li><kbd>C-c s l</kbd> (<code>caldav-calendars</code>) lists the server's calendars.</li>
+<li><kbd>C-c s d</kbd> (<code>caldav-deleted</code>) deletes on the server what you deleted here.</li>
+<li><kbd>C-c s i</kbd> (<code>caldav-import</code>) reads a calendar file (<code>.ics</code>).</li>
+<li><kbd>C-c s e</kbd> (<code>caldav-export</code>) writes entries as a calendar file. It is bound in
+  Org files only.</li>
+</ul>
+<p>Every command also runs with <kbd>M-x</kbd> in any buffer. Chapter 4 says what each does.</p>
+<h2 id="01-what-caldav-is--where-the-calendars-are-kept"><span class="num">1.3</span> Where the calendars are kept</h2>
+<p>The calendars are in one Org file, with a heading for each calendar and its
+events under it. The setting <code>*caldav-file*</code> names the file. Its default,
+<code>&quot;agenda-caldav.org&quot;</code>, is a file beside the first of your agenda files. The
+agenda reads it whether or not <code>*org-agenda-files*</code> names it.</p>
+<pre class="ex"><code class="language-lisp">(setf *caldav-file* &quot;agenda-caldav.org&quot;)        ; the default
+(setf *caldav-file* &quot;~/Documents/agenda.org&quot;)   ; among your own entries
+</code></pre>
+<p>A name alone is a file beside the first agenda file. A path is that file.</p>
+<p>Only the calendars' file is synced. Your own agenda file and notes are never
+read for it and never changed. When you set <code>*caldav-file*</code> to one of your
+agenda files, the calendars are headings among your own, and only what is under
+a calendar's heading (the one with a <code>CALENDAR</code> property) is synced. The rest of
+the file is left as it is.</p>
+<h2 id="01-what-caldav-is--what-is-kept-apart-from-the-file"><span class="num">1.4</span> What is kept apart from the file</h2>
+<p>What each calendar last agreed with its server is kept in
+<code>~/.local/state/tuatara/calendars/</code>, never in the Org file. It holds the sync
+token and a copy of each event. The copy gives what an entry does not say: the
+attendees, alarms and properties that other programs keep are sent back as they
+were.</p>
+<h2 id="01-what-caldav-is--subscriptions"><span class="num">1.5</span> Subscriptions</h2>
+<p>A subscription is a calendar file at an address, public holidays for example. It
+is read into the agenda and never sent back. Each one is fetched at every sync
+and written as an Org file of its own in the cache, which the agenda reads among
+its files.</p>
+<pre class="ex"><code class="language-lisp">(setf *caldav-subscriptions*
+      '((:name &quot;Holidays&quot; :url &quot;https://example.org/holidays.ics&quot;)))
+</code></pre>
+<p><code>:name</code> is what its heading is called and <code>:url</code> is its address, which must be
+https.</p>
+</section>
+<section class="chapter" id="02-a-calendar-server">
+<h1 id="02-a-calendar-server--a-calendar-server">A calendar server</h1>
+<p class="lead">Setting up EteSync or Radicale for caldav to talk to.</p>
+<p>You need a calendar server, the package in Tuatara, and the server's password in
+your desktop's keyring. Pick one of two ways to have a server:</p>
+<ul>
+<li>A. EteSync, if you have an EteSync account. Your calendars stay encrypted end
+  to end. A small program on your computer, etesync-dav, lets Tuatara,
+  Thunderbird and GNOME Calendar talk to them.</li>
+<li>B. Your own Radicale, free, on a computer of yours that is on. You reach it
+  from your laptop and phone over Tailscale, a private network between your own
+  devices. Nothing is open to the internet.</li>
+</ul>
+<p>The examples write <code>you</code> for your user name, <code>EteSync</code> for an account's name and
+<code>home-server</code> for the computer that keeps the calendars. Write your own.</p>
+<h2 id="02-a-calendar-server--a-etesync-run-etesync-dav"><span class="num">2.1</span> A. EteSync: run etesync-dav</h2>
+<ol>
+<li><p>Download etesync-dav for Linux from its releases page,
+   <a href="https://github.com/etesync/etesync-dav/releases">https://github.com/etesync/etesync-dav/releases</a>, into <code>~/.local/bin/</code>, and
+   make it runnable:</p>
+<pre class="ex">   chmod +x ~/.local/bin/etesync-dav
+</pre>
+<p>   <code>pipx install etesync-dav</code> works too. On the newest Python versions one of
+   its parts may not build, and the download always works.</p>
+</li>
+<li><p>Start it and add your account:</p>
+<pre class="ex">   etesync-dav manage add you      # asks your EteSync password once
+   etesync-dav manage get you      # shows the password for programs here
+   etesync-dav                     # keep this running
+</pre>
+<p>   The password <code>manage get</code> shows is not your EteSync password. etesync-dav
+   made it for programs on this computer, and it is the one Tuatara needs. Its
+   page, <a href="http://localhost:37358/">http://localhost:37358/</a>, shows the same with Copy Password.</p>
+</li>
+<li>Have it start with your computer. Add <code>etesync-dav</code> to your desktop's startup
+   applications (GNOME: the Tweaks app, Startup Applications; KDE: System
+   Settings, Autostart).</li>
+</ol>
+<p>etesync-dav answers on <code>http://localhost:37358/</code> and only to this computer,
+which is why Tuatara may use plain http for it.</p>
+<h2 id="02-a-calendar-server--b-your-own-radicale-reached-over-tailscale"><span class="num">2.2</span> B. Your own Radicale, reached over Tailscale</h2>
+<p>Do this on the computer that keeps your calendars: a desktop that is on, a small
+home server or a Raspberry Pi. It is called <code>home-server</code> here.</p>
+<ol>
+<li><p>Install Radicale and the password tools:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr><th>System</th><th>Command</th></tr>
+</thead>
+<tbody>
+<tr><td>Fedora</td><td><code>sudo dnf install radicale httpd-tools python3-bcrypt</code></td></tr>
+<tr><td>Debian, Ubuntu</td><td><code>sudo apt install radicale apache2-utils python3-bcrypt</code></td></tr>
+<tr><td>Arch, Omarchy</td><td><code>sudo pacman -S radicale apache python-bcrypt</code></td></tr>
+</tbody></table></div>
+</li>
+<li><p>Make your user and its password. Use a long one of its own, not used anywhere
+   else. <code>-B</code> keeps it as a bcrypt hash, never as it is:</p>
+<pre class="ex">   sudo htpasswd -B -c /etc/radicale/users you
+</pre>
+</li>
+<li><p>Tell Radicale to listen to this computer alone and to ask for that password.
+   Edit <code>/etc/radicale/config</code> so these sections say:</p>
+<pre class="ex">   [server]
+   hosts = localhost:5232
+
+   [auth]
+   type = htpasswd
+   htpasswd_filename = /etc/radicale/users
+   htpasswd_encryption = autodetect
+
+   [rights]
+   type = owner_only
+</pre>
+<p>   <code>owner_only</code> lets each user see their own calendars alone.</p>
+</li>
+<li><p>Start it, now and at every start:</p>
+<pre class="ex">   sudo systemctl enable --now radicale
+</pre>
+<p>   Open <a href="http://localhost:5232/">http://localhost:5232/</a> on that computer, log in, and make a calendar
+   (Create new addressbook or calendar). Tuatara syncs the calendars that are
+   there. It never makes one.</p>
+</li>
+<li><p>Install Tailscale on this computer and on every device that should see your
+   calendars: <a href="https://tailscale.com/download">https://tailscale.com/download</a>. Sign in to the same account on
+   each, and on Linux run:</p>
+<pre class="ex">   sudo tailscale up
+</pre>
+</li>
+<li>Turn on HTTPS for your tailnet, once. In the Tailscale admin page,
+   <a href="https://login.tailscale.com/admin/dns">https://login.tailscale.com/admin/dns</a>, enable MagicDNS and HTTPS
+   Certificates.</li>
+<li><p>Give Radicale an https address on your tailnet, on <code>home-server</code>:</p>
+<pre class="ex">   sudo tailscale serve --bg 5232
+   tailscale serve status
+</pre>
+<p>   The status shows its address, such as <code>https://home-server.tail1234.ts.net/</code>.
+   Only your own devices, signed in to your tailnet, can reach it, with a real
+   certificate. Nothing is open to the internet. Never use <code>tailscale funnel</code>,
+   which opens it to everyone, and never forward a port on your router for it.</p>
+</li>
+</ol>
+<p>On <code>home-server</code> itself Tuatara may use <code>http://localhost:5232/</code>. On your other
+computers it uses the <code>https://...ts.net/</code> address.</p>
+<h2 id="02-a-calendar-server--the-same-calendars-elsewhere"><span class="num">2.3</span> The same calendars elsewhere</h2>
+<ul>
+<li>Thunderbird: File, New, Calendar, On the Network. Give the user name and the
+  address, then Find Calendars.</li>
+<li>GNOME Calendar: Settings, Online Accounts, Calendar, Contacts and Files
+  (WebDAV). Give the address, user and password.</li>
+<li>Android: the Tailscale app, then DAVx5 (Login with URL and user name), and any
+  calendar app.</li>
+<li>iPhone and iPad: the Tailscale app, then Settings, Calendar, Accounts, Add
+  Account, Other, Add CalDAV Account.</li>
+<li>Phones with EteSync: the EteSync app itself. etesync-dav is for computers.</li>
+</ul>
+</section>
+<section class="chapter" id="03-accounts-and-passwords">
+<h1 id="03-accounts-and-passwords--accounts-and-passwords">Accounts and passwords</h1>
+<p class="lead">Telling Tuatara which server to sync with and where its password is kept.</p>
+<h2 id="03-accounts-and-passwords--the-password-in-the-keyring"><span class="num">3.1</span> The password in the keyring</h2>
+<p>On each computer Tuatara syncs from, store the password in the desktop's
+keyring. Never write it in the init file.</p>
+<pre class="ex">secret-tool store --label=&quot;Tuatara calendars&quot; service tuatara-caldav user you
+</pre>
+<p>It asks for the password. For EteSync give the one <code>etesync-dav manage get</code>
+showed. For Radicale give the one you gave <code>htpasswd</code>.</p>
+<h2 id="03-accounts-and-passwords--the-password-in-a-gnupg-file"><span class="num">3.2</span> The password in a GnuPG file</h2>
+<p>Instead of the keyring, the password can be kept in a file encrypted with GnuPG
+and given by a command, as mbsync's <code>PassCmd</code> gives one:</p>
+<pre class="ex">printf '%s\n' 'THE-PASSWORD' | gpg --symmetric --output ~/.etesync-pass.gpg
+chmod 600 ~/.etesync-pass.gpg
+</pre>
+<p>The first command asks for a passphrase for the file. Clear your shell's history
+of that line afterwards, or type the password into a file and encrypt the file,
+then delete it. Then give the account a <code>:password-command</code>:</p>
+<pre class="ex"><code class="language-lisp">'((:name &quot;EteSync&quot; :url &quot;http://localhost:37358/&quot; :user &quot;you&quot;
+   :password-command
+   &quot;gpg --quiet --for-your-eyes-only --no-tty --decrypt ~/.etesync-pass.gpg&quot;))
+</code></pre>
+<p>At each sync Tuatara runs the command, with no shell. A word beginning with <code>~/</code>
+is a path in your home directory. The first line the command prints is the
+password. gpg-agent asks for the file's passphrase in a window of its own and
+remembers it for a while: 10 minutes as standard, each use counting again, so
+syncing every minute keeps it remembered up to gpg-agent's limit, two hours as
+standard. Then it asks again.</p>
+<p>The password is never written anywhere. It goes from gpg to curl through pipes,
+and Tuatara's own copies of it are wiped from memory once used. When the command
+fails, Tuatara says so, and never says what the command printed.</p>
+<h2 id="03-accounts-and-passwords--if-the-password-was-stored-for-calendar-sync"><span class="num">3.3</span> If the password was stored for calendar-sync</h2>
+<p>Before Tuatara 0.90.13 the package was called calendar-sync, and its password
+was kept under the service <code>tuatara-calendar-sync</code>. Copy it to the new name
+once, on each computer that has it, <code>you</code> being the account's <code>:user</code>. The
+password is not shown:</p>
+<pre class="ex">secret-tool lookup service tuatara-calendar-sync user you | secret-tool store --label=&quot;Tuatara calendars&quot; service tuatara-caldav user you
+</pre>
+<p>Once <kbd>C-c s l</kbd> (<code>caldav-calendars</code>) lists the account's calendars, Tuatara has
+found the password under its new name, and the old entry can go:</p>
+<pre class="ex">secret-tool clear service tuatara-calendar-sync user you
+</pre>
+<h2 id="03-accounts-and-passwords--loading-the-package-with-an-account"><span class="num">3.4</span> Loading the package with an account</h2>
+<p>Open your init file, add this with one of the two accounts (delete the other's
+lines, or start them with <code>;;</code>, which Tuatara reads past), and save:</p>
+<pre class="ex"><code class="language-lisp">(load-package &quot;caldav&quot; :source &quot;https://github.com/Tuatara-Editor/tuatara-caldav&quot;
+              :version &quot;latest&quot;
+  :config
+  (setf *caldav-accounts*
+        ;; A. EteSync
+        '((:name &quot;EteSync&quot; :url &quot;http://localhost:37358/&quot; :user &quot;you&quot;))
+        ;; B. Radicale over Tailscale
+        ;; (on home-server itself: &quot;http://localhost:5232/&quot;)
+        ;; '((:name &quot;Home&quot; :url &quot;https://home-server.tail1234.ts.net/&quot;
+        ;;    :user &quot;you&quot;))
+        ))
+</code></pre>
+<p>Start Tuatara again. It asks once whether to load the package.</p>
+<h2 id="03-accounts-and-passwords--the-accounts-setting"><span class="num">3.5</span> The accounts setting</h2>
+<p><code>*caldav-accounts*</code> is a list of accounts. Each is a list of keywords and
+values.</p>
+<ul>
+<li><code>:name</code> is what its calendars' headings are named after.</li>
+<li><code>:url</code> is the server's address: https, or http to this machine alone.</li>
+<li><code>:user</code> is the name it signs in with.</li>
+<li><code>:calendars</code> names those of its calendars to sync. Every calendar is synced
+  when it is not given. <kbd>C-c s l</kbd> lists the names Tuatara finds.</li>
+<li><code>:password-command</code> is a command that gives the password, run without a shell.</li>
+</ul>
+<pre class="ex"><code class="language-lisp">'((:name &quot;EteSync&quot; :url &quot;http://localhost:37358/&quot; :user &quot;you&quot;
+   :calendars (&quot;Personal&quot; &quot;Family&quot;)))
+</code></pre>
+<p>The address is the server's own. The calendars are found from it as CalDAV says
+(the principal, then its calendar home). Each calendar is a heading of its own
+in the calendars' file, its address in the <code>CALENDAR</code> property.</p>
+</section>
+<section class="chapter" id="04-syncing">
+<h1 id="04-syncing--syncing">Syncing</h1>
+<p class="lead">When calendars are synced, and what each command does.</p>
+<h2 id="04-syncing--automatic-syncing"><span class="num">4.1</span> Automatic syncing</h2>
+<p>The calendars sync on their own, a few seconds after Tuatara starts and then
+every minute, in the background. Nothing is said unless something changed or
+failed. A failure is told once, not again every minute while it lasts.</p>
+<p>A sync that finds nothing changed costs one request for each account's
+calendars, and reads and writes nothing on your drive.</p>
+<p><code>*caldav-minutes*</code> sets how often. Give minutes, or words such as <code>&quot;30m&quot;</code> or
+<code>&quot;1h&quot;</code>. It is never more often than once a minute. Give <code>nil</code>, or 0 or less, to
+sync only when asked.</p>
+<pre class="ex"><code class="language-lisp">(setf *caldav-minutes* 5)
+</code></pre>
+<h2 id="04-syncing--syncing-at-once"><span class="num">4.2</span> Syncing at once</h2>
+<p><kbd>C-c s s</kbd> (<code>caldav-sync</code>) syncs every account's calendars and fetches the
+subscriptions, in the background. The first sync writes <code>agenda-caldav.org</code>
+beside your agenda file, a heading for each calendar, and the agenda shows its
+events. In an Org file or the agenda <kbd>C-c s s</kbd> works. <code>M-x caldav-sync</code> works
+anywhere.</p>
+<p>A sync sends what you changed in an entry and fetches what changed on the server
+since the last sync, then writes it into its entry. Only the lines that differ
+are changed, as one step to undo, and the file is saved. Your own lines in an
+entry (notes, checkboxes, clocks, properties of your own) are kept when the
+server's version is written.</p>
+<p>After each sync Tuatara says what it did in one line, and what failed after
+<code>failed:</code>. <kbd>C-h e</kbd> shows the messages again. A failed sync is also told as a
+notification, on the desktop and in <code>*Notifications*</code> (<kbd>C-h N</kbd>).</p>
+<h2 id="04-syncing--what-happens-to-an-entry"><span class="num">4.3</span> What happens to an entry</h2>
+<ul>
+<li>New entries under a calendar's heading become events on its server. Their UID
+  is written into them.</li>
+<li>Deleted on the server: the entry is deleted too. One that holds lines of yours
+  (notes, checkboxes, clocks, properties of your own) stays. It is tagged
+  <code>removed</code> and no longer synced, and its times are made inactive
+  (<code>[2026-11-05 Thu]</code>) so the agenda shows it no more. Delete it when you are
+  done with it.</li>
+<li>Deleted here: nothing happens on the server until <kbd>C-c s d</kbd> asks you. When you
+  answer no, the entries are put back.</li>
+<li>Cancelled here (<kbd>C-c C-x C</kbd>, keyword <code>CANCELLED</code> or <code>CANCELED</code>): its event is
+  deleted on the server at the next sync, so it leaves your other devices. The
+  entry stays, tagged <code>removed</code> and no longer synced. The agenda still shows it,
+  cancelled. An entry cancelled before it was ever sent is not sent.</li>
+<li>Changed on both sides: the server's version stands in the entry, and yours is
+  kept beside it, tagged <code>conflict</code> and no longer synced. Copy what you want
+  from it and delete it.</li>
+</ul>
+<h2 id="04-syncing--the-other-commands"><span class="num">4.4</span> The other commands</h2>
+<p><kbd>C-c s l</kbd> (<code>caldav-calendars</code>) says the calendars each account has and which of
+them are synced. It only asks the server, so it shows that Tuatara reaches it.
+It works when nothing else does.</p>
+<p><kbd>C-c s d</kbd> (<code>caldav-deleted</code>) deletes on the server the events whose entries you
+deleted, after asking. Answer no and the entries are put back.</p>
+<p><kbd>C-c s i</kbd> (<code>caldav-import</code>) reads a calendar file (<code>.ics</code>) under one of your
+calendars, or under a heading of its own.</p>
+<p><kbd>C-c s e</kbd> (<code>caldav-export</code>) writes the entry at point and those under it, or the
+entries selected, as a calendar file. It is bound in Org files only.</p>
+<h2 id="04-syncing--a-new-event"><span class="num">4.5</span> A new event</h2>
+<p><kbd>C-c s n</kbd> (<code>caldav-event-new</code>, or <code>M-x caldav-event-new</code> anywhere) asks which
+calendar when you have more than one, then the event's title, its place (<kbd>RET</kbd>
+for none) and its time in the calendar. A form opens with the cursor between the
+description block's two lines. Write the description there, or nothing.</p>
+<ul>
+<li><kbd>C-c C-c</kbd> files the event under the calendar's heading, and the server gets it
+  at the next sync.</li>
+<li><kbd>C-c C-w</kbd> files it under another heading instead.</li>
+<li><kbd>C-c C-k</kbd> throws it away.</li>
+</ul>
+<p>The <code>#+name: description</code> line marks the block as the description, so leave it
+as it is. A location or description left blank is none, and nothing is sent for
+it.</p>
+</section>
+<section class="chapter" id="05-events-as-org-entries">
+<h1 id="05-events-as-org-entries--events-as-org-entries">Events as Org entries</h1>
+<p class="lead">How an event or task of a calendar is written as an Org heading.</p>
+<p>Each event or task is one heading. Its UID is kept in the <code>UID</code> property.</p>
+<ul>
+<li><code>SUMMARY</code> is the heading.</li>
+<li><code>DTSTART</code>, <code>DTEND</code> and <code>DURATION</code> are an active timestamp on your computer's
+  clock, such as <code>&lt;2026-11-03 Tue 09:00-10:00&gt;</code>, a range for several days.</li>
+<li>A weekly, monthly or yearly rule that Org's repeater can say is the repeater:
+  <code>+1w</code>, <code>+2w</code>, <code>+1m</code>, <code>+1y</code>.</li>
+<li>A rule such as the second Tuesday, Mondays and Fridays, every other week on
+  two days, three times only, or until a day is a date by rule, as the repeat
+  menu of the date prompt writes it (<kbd>C-c C-s</kbd>, then <kbd>C-r</kbd>): <code>&lt;%%(and
+  (diary-block 11 10 2026 1 12 2027) (diary-float t 2 2)) 18:00-20:00&gt;</code>.</li>
+<li><code>EXDATE</code>, or a time changed alone, is a note in the logbook of the time
+  cancelled or moved. Cancelling one time (<kbd>C-c C-x C</kbd>) and scheduling one time
+  elsewhere (<kbd>C-c C-s</kbd>) write the same notes.</li>
+<li>A rule Org cannot say, such as the last weekday of a month, is each time
+  written out within the days kept (a year back, two ahead, at most 500 times),
+  with the rule in the <code>RRULE</code> property. These times belong to the calendar and
+  are never sent back.</li>
+<li>A task's <code>DUE</code>, <code>DTSTART</code> and <code>COMPLETED</code> are <code>TODO</code> with <code>DEADLINE</code>,
+  <code>SCHEDULED</code>, <code>DONE</code> and <code>CLOSED</code>.</li>
+<li><code>LOCATION</code> is the <code>LOCATION</code> property.</li>
+<li><code>CATEGORIES</code> are tags. <code>Public Holiday</code> is <code>Public_Holiday</code>.</li>
+<li><code>STATUS:CANCELLED</code> is the tag <code>cancelled</code>.</li>
+<li><code>DESCRIPTION</code> is an example block named <code>description</code>.</li>
+</ul>
+<p>Read back, an entry gives the same properties. Several timestamps in one entry
+are an event each, the UID of the second and later ones followed by their day.
+Everything else the calendar keeps of an event (attendees, alarms, its own
+properties) is kept as it was. Times the entry still says as the calendar did
+are sent as the calendar wrote them.</p>
+<p>Words from a calendar stay words. A title stays on one line, a description stays
+inside its block, and neither can become a heading, a link, a timestamp, a clock
+or a note the agenda reads.</p>
+<h2 id="05-events-as-org-entries--calendar-files"><span class="num">5.1</span> Calendar files</h2>
+<p>A calendar file is read into its components (a calendar, its events, tasks and
+time zones) and their properties, kept as written, so a file read and written
+again loses nothing. Lines are written folded at 75 octets, never inside a
+character.</p>
+<ul>
+<li>Values are read when asked for: text with its escapes, dates and times
+  (floating, UTC, or in a named time zone), durations, offsets and rules of
+  recurrence.</li>
+<li>A time zone a file names is found in the file's own definition first, then
+  among the system's (<code>/usr/share/zoneinfo</code>), the name checked to be a zone's
+  name and nothing more. One is written for a zone by its yearly rule.</li>
+<li>Recurrences cover every part of a rule of recurrence, extra dates, dates taken
+  out, and occurrences changed one by one. They are expanded only within the
+  days asked for, and are checked against the examples in RFC 5545 itself.</li>
+</ul>
+</section>
+<section class="chapter" id="06-safety-limits-and-failures">
+<h1 id="06-safety-limits-and-failures--safety-limits-and-what-to-do-when-it-fails">Safety, limits and what to do when it fails</h1>
+<p class="lead">What the package never does, what it refuses, and how to find a fault.</p>
+<h2 id="06-safety-limits-and-failures--why-it-is-safe"><span class="num">6.1</span> Why it is safe</h2>
+<ul>
+<li>The password is kept by the desktop's keyring, or encrypted by GnuPG. It is
+  given to curl on its standard input, never on its command line or in a file,
+  and Tuatara's copies are wiped from memory once used. It is sent only to the
+  server's own address, whatever the server's answers name.</li>
+<li>Every request goes through curl. The address is https, or http to this machine
+  alone (etesync-dav). A redirect elsewhere is not followed, and at most five
+  redirects are taken.</li>
+<li>Tuatara talks https to every other computer. With Tailscale the calendars
+  travel inside your own private, encrypted network as well.</li>
+<li>Radicale listens to its own computer alone, Tailscale's https address is for
+  your devices alone, and each user sees their own calendars alone.</li>
+<li>Nothing a server sends is ever run. Calendar files are read as data, and their
+  words are written into Org as words.</li>
+</ul>
+<h2 id="06-safety-limits-and-failures--limits"><span class="num">6.2</span> Limits</h2>
+<p>A calendar file comes from elsewhere and is never trusted.</p>
+<ul>
+<li>A request is bounded at 32 MB and 60 seconds.</li>
+<li>The reader refuses a calendar file larger than 16 MB, or with components
+  nested more than 20 deep.</li>
+<li>No more than 10,000 occurrences of one event are worked out at once.</li>
+</ul>
+<h2 id="06-safety-limits-and-failures--when-nothing-is-said"><span class="num">6.3</span> When nothing is said</h2>
+<p>If there are no messages at all, the sync was not started. <kbd>C-c s s</kbd> works in an
+Org file or the agenda only, and <code>M-x caldav-sync</code> works anywhere. Start with
+<kbd>C-c s l</kbd>, which only asks the server for its calendars and says what it found,
+or why it could not.</p>
+<h2 id="06-safety-limits-and-failures--messages"><span class="num">6.4</span> Messages</h2>
+<p>After a failed sync the message names the account or calendar and says why, in
+curl's own words when the server could not be reached (<code>Could not connect to
+server</code>, <code>Could not resolve host</code>, <code>Operation timed out</code>).</p>
+<ul>
+<li><code>No password for ... in the keyring</code>: the keyring step of chapter 3 was not
+  done for that user name, or was done for a different one than the init file
+  says.</li>
+<li><code>refused the name and password</code>: the password in the keyring is not the
+  server's. For EteSync it is the <code>manage get</code> one, not your EteSync one.</li>
+<li><code>not reached: Could not connect to server</code>: the server is not running
+  (<code>etesync-dav</code>, or <code>sudo systemctl status radicale</code>), or Tailscale is off on
+  this device (<code>tailscale status</code>).</li>
+<li><code>is not https, nor on this machine</code>: an <code>http://</code> address of another computer.
+  Use its <code>https://...ts.net/</code> address (chapter 2, B, step 7).</li>
+<li><code>says no calendars</code>: make a calendar first, in chapter 2 B step 4 or in
+  EteSync.</li>
+</ul>
+</section>
+<section class="chapter" id="07-every-command-and-setting">
+<h1 id="07-every-command-and-setting--every-command-and-setting">Every command and setting</h1>
+<p class="lead">Each command and setting of caldav, to look one up by name.</p>
+<p>The tables are made from the program each time this manual is made, so they
+never list a command or setting that caldav does not have. The first
+table has four columns. The first two are keys: the modal keys, which work only
+with modal editing on, and the non-modal keys, which work with it off too. A
+command with no key says <kbd>M-x</kbd> and its name in the second column, because you
+can only run it by its name. The third column is the name of the command and the
+fourth says what it does.</p>
+<p>To run a command by its name, press <kbd>M-x</kbd>, type a few letters of the name and
+press <kbd>RET</kbd>. To find a command from within the editor, press <kbd>C-h f</kbd>. To find
+the command that a key runs, press <kbd>C-h k</kbd> and then the key. The editor's own
+settings and commands are in chapters 21 and 22 of its manual.</p>
+<h2 id="07-every-command-and-setting--every-command"><span class="num">7.1</span> Every command</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr><th>Modal</th><th>Non-modal</th><th>Command</th><th>What it does</th></tr>
+</thead>
+<tbody>
+<tr><td>none</td><td><kbd>C-c s l</kbd></td><td><code>caldav-calendars</code></td><td>Say the calendars each account of <strong>caldav-accounts</strong> has, by the names its :CALENDARS takes, and which of them are synced: a way to see that Tuatara reaches the server, and what it finds there.</td></tr>
+<tr><td>none</td><td><kbd>C-c s d</kbd></td><td><code>caldav-deleted</code></td><td>Delete on their servers the events whose entries were deleted from the calendars' file, after asking; or, answered no, put their entries back as the server has them.</td></tr>
+<tr><td>none</td><td><kbd>C-c s n</kbd></td><td><code>caldav-event-new</code></td><td>Write a new event for one of your calendars: choose the calendar (when there is more than one), then give its title, its place (RET for none) and its time in the calendar.</td></tr>
+<tr><td>none</td><td><kbd>C-c s e</kbd></td><td><code>caldav-export</code></td><td>Write the entry at point and those under it, or the entries selected, as a calendar file (.ics) other calendars read: their times, title, place, tags and description.</td></tr>
+<tr><td>none</td><td><kbd>C-c s i</kbd></td><td><code>caldav-import</code></td><td>Read a calendar file (.ics) into the calendars' file: under one of your calendars, whose server gets its events at the next sync, or under a heading of its own, never synced.</td></tr>
+<tr><td>none</td><td><kbd>C-c s s</kbd></td><td><code>caldav-sync</code></td><td>Sync the calendars of your Calendaring Extensions to WebDAV (CalDAV) accounts (<strong>caldav-accounts</strong>) with the calendars' Org file (<strong>caldav-file</strong>), a heading each: what changed in an entry here is sent, what changed on the server is written into its entry, your own lines in it kept, and new events are added under their calendar.</td></tr>
+</tbody></table></div>
+<h2 id="07-every-command-and-setting--every-setting"><span class="num">7.2</span> Every setting</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr><th>Setting</th><th>Default</th><th>Values</th><th>What it changes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>*caldav-accounts*</code></td><td><code>nil</code></td><td>a list, each (:NAME NAME :URL URL :USER USER :CALENDARS (NAME …))</td><td>The accounts whose calendars are synced.</td></tr>
+<tr><td><code>*caldav-file*</code></td><td><code>&quot;agenda-caldav.org&quot;</code></td><td>a file's name</td><td>The Org file the synced calendars are kept in.</td></tr>
+<tr><td><code>*caldav-minutes*</code></td><td><code>1</code></td><td>nil, or a number of minutes, or a time in words such as 500ms, 90s, 30m or 2h, at most a hundred years</td><td>How often the calendars are synced on their own, in minutes.</td></tr>
+<tr><td><code>*caldav-subscriptions*</code></td><td><code>nil</code></td><td>a list, each (:NAME NAME :URL URL)</td><td>Calendar files at an address, read into the agenda and never sent back.</td></tr>
+</tbody></table></div>
+</section>
+</article>
+</main>
+</div>
+</body>
+</html>
