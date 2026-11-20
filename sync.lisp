@@ -279,7 +279,7 @@ its property drawer, made after its heading and planning when it has none."
                                (min (length text) (1+ (or (position #\Newline text :start after) (1- (length text)))))
                                after)))
         (format nil "~a~@[~%~*~]:PROPERTIES:~%:~a: ~a~%:END:~%~a"
-                (subseq text 0 planning-end) (and (= planning-end (length text)) (not (org-ends-with-newline-p text)))
+                (subseq text 0 planning-end) (and (= planning-end (length text)) (not (ends-with-newline-p text)))
                 *uid-property* (field uid) (subseq text planning-end)))))
 
 ;;; Events compared as the calendar would read them
@@ -580,7 +580,7 @@ The entries' texts are made by the sync; here they are only put in place."
                                                (format nil
                                                        "~a~a~:[~%~;~]"
                                                        (heading-tagged (subseq copy 0 line-end) *conflict-tag*)
-                                                       (subseq copy line-end) (org-ends-with-newline-p copy)))
+                                                       (subseq copy line-end) (ends-with-newline-p copy)))
                                              ""))))
                     (push written added)))))
           (dolist (uid (calendar-pass-gone pass))
