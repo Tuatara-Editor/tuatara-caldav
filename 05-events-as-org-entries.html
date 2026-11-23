@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src  'self'; img-src 'self' file:; script-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Events as Org entries &ndash; caldav Manual</title>
+<link rel="icon" href="tuatara.png">
+<link rel="stylesheet" href="manual.css">
+<script src="manual.js" defer></script>
+</head>
+<body>
+<div class="site">
+<nav class="toc" id="contents" aria-label="Contents">
+<strong>caldav Manual</strong>
+<small>for Tuatara 0.90.39 and later</small>
+<p class="tools"><a href="all.html">All on one page</a>
+<button type="button" class="theme" hidden>Dark</button></p>
+<input type="search" placeholder="Search the manual" aria-label="Search the manual">
+<ol class="chapters"><li id="nav-index"><a href="index.html">0 Contents</a></li><li id="nav-01-what-caldav-is"><a href="01-what-caldav-is.html">1 What caldav is</a><ol><li><a href="01-what-caldav-is.html#the-programs-it-uses">1.1 The programs it uses</a></li><li><a href="01-what-caldav-is.html#the-keys">1.2 The keys</a></li><li><a href="01-what-caldav-is.html#where-the-calendars-are-kept">1.3 Where the calendars are kept</a></li><li><a href="01-what-caldav-is.html#what-is-kept-apart-from-the-file">1.4 What is kept apart from the file</a></li><li><a href="01-what-caldav-is.html#subscriptions">1.5 Subscriptions</a></li></ol></li><li id="nav-02-a-calendar-server"><a href="02-a-calendar-server.html">2 A calendar server</a><ol><li><a href="02-a-calendar-server.html#a-etesync-run-etesync-dav">2.1 A. EteSync: run etesync-dav</a></li><li><a href="02-a-calendar-server.html#b-your-own-radicale-reached-over-tailscale">2.2 B. Your own Radicale, reached over Tailscale</a></li><li><a href="02-a-calendar-server.html#the-same-calendars-elsewhere">2.3 The same calendars elsewhere</a></li></ol></li><li id="nav-03-accounts-and-passwords"><a href="03-accounts-and-passwords.html">3 Accounts and passwords</a><ol><li><a href="03-accounts-and-passwords.html#the-password-in-the-keyring">3.1 The password in the keyring</a></li><li><a href="03-accounts-and-passwords.html#the-password-in-a-gnupg-file">3.2 The password in a GnuPG file</a></li><li><a href="03-accounts-and-passwords.html#if-the-password-was-stored-for-calendar-sync">3.3 If the password was stored for calendar-sync</a></li><li><a href="03-accounts-and-passwords.html#loading-the-package-with-an-account">3.4 Loading the package with an account</a></li><li><a href="03-accounts-and-passwords.html#the-accounts-setting">3.5 The accounts setting</a></li></ol></li><li id="nav-04-syncing"><a href="04-syncing.html">4 Syncing</a><ol><li><a href="04-syncing.html#automatic-syncing">4.1 Automatic syncing</a></li><li><a href="04-syncing.html#syncing-at-once">4.2 Syncing at once</a></li><li><a href="04-syncing.html#what-happens-to-an-entry">4.3 What happens to an entry</a></li><li><a href="04-syncing.html#the-other-commands">4.4 The other commands</a></li><li><a href="04-syncing.html#a-new-event">4.5 A new event</a></li></ol></li><li id="nav-05-events-as-org-entries" class="here"><a class="here" href="05-events-as-org-entries.html">5 Events as Org entries</a><ol><li><a href="05-events-as-org-entries.html#calendar-files">5.1 Calendar files</a></li></ol></li><li id="nav-06-safety-limits-and-failures"><a href="06-safety-limits-and-failures.html">6 Safety, limits and what to do when it fails</a><ol><li><a href="06-safety-limits-and-failures.html#why-it-is-safe">6.1 Why it is safe</a></li><li><a href="06-safety-limits-and-failures.html#limits">6.2 Limits</a></li><li><a href="06-safety-limits-and-failures.html#when-nothing-is-said">6.3 When nothing is said</a></li><li><a href="06-safety-limits-and-failures.html#messages">6.4 Messages</a></li></ol></li><li id="nav-07-every-command-and-setting"><a href="07-every-command-and-setting.html">7 Every command and setting</a><ol><li><a href="07-every-command-and-setting.html#every-command">7.1 Every command</a></li><li><a href="07-every-command-and-setting.html#every-setting">7.2 Every setting</a></li></ol></li></ol>
+</nav>
+<main>
+<article>
+<div class="node"><span>Previous: <a href="04-syncing.html">Syncing</a></span><span>Next: <a href="06-safety-limits-and-failures.html">Safety, limits and what to do when it fails</a></span><span>Up: <a href="index.html">Contents</a></span></div>
+<h1 id="events-as-org-entries">Events as Org entries</h1>
+<p class="lead">How an event or task of a calendar is written as an Org heading.</p>
+<p>Each event or task is one heading. Its UID is kept in the <code>UID</code> property.</p>
+<ul>
+<li><code>SUMMARY</code> is the heading.</li>
+<li><code>DTSTART</code>, <code>DTEND</code> and <code>DURATION</code> are an active timestamp on your computer's
+  clock, such as <code>&lt;2026-11-03 Tue 09:00-10:00&gt;</code>, a range for several days.</li>
+<li>A weekly, monthly or yearly rule that Org's repeater can say is the repeater:
+  <code>+1w</code>, <code>+2w</code>, <code>+1m</code>, <code>+1y</code>.</li>
+<li>A rule such as the second Tuesday, Mondays and Fridays, every other week on
+  two days, three times only, or until a day is a date by rule, as the repeat
+  menu of the date prompt writes it (<kbd>C-c C-s</kbd>, then <kbd>C-r</kbd>): <code>&lt;%%(and
+  (diary-block 11 10 2026 1 12 2027) (diary-float t 2 2)) 18:00-20:00&gt;</code>.</li>
+<li><code>EXDATE</code>, or a time changed alone, is a note in the logbook of the time
+  cancelled or moved. Cancelling one time (<kbd>C-c C-x C</kbd>) and scheduling one time
+  elsewhere (<kbd>C-c C-s</kbd>) write the same notes.</li>
+<li>A rule Org cannot say, such as the last weekday of a month, is each time
+  written out within the days kept (a year back, two ahead, at most 500 times),
+  with the rule in the <code>RRULE</code> property. These times belong to the calendar and
+  are never sent back.</li>
+<li>A task's <code>DUE</code>, <code>DTSTART</code> and <code>COMPLETED</code> are <code>TODO</code> with <code>DEADLINE</code>,
+  <code>SCHEDULED</code>, <code>DONE</code> and <code>CLOSED</code>.</li>
+<li><code>LOCATION</code> is the <code>LOCATION</code> property.</li>
+<li><code>CATEGORIES</code> are tags. <code>Public Holiday</code> is <code>Public_Holiday</code>.</li>
+<li><code>STATUS:CANCELLED</code> is the tag <code>cancelled</code>.</li>
+<li><code>DESCRIPTION</code> is an example block named <code>description</code>.</li>
+</ul>
+<p>Read back, an entry gives the same properties. Several timestamps in one entry
+are an event each, the UID of the second and later ones followed by their day.
+Everything else the calendar keeps of an event (attendees, alarms, its own
+properties) is kept as it was. Times the entry still says as the calendar did
+are sent as the calendar wrote them.</p>
+<p>Words from a calendar stay words. A title stays on one line, a description stays
+inside its block, and neither can become a heading, a link, a timestamp, a clock
+or a note the agenda reads.</p>
+<h2 id="calendar-files"><span class="num">5.1</span> Calendar files</h2>
+<p>A calendar file is read into its components (a calendar, its events, tasks and
+time zones) and their properties, kept as written, so a file read and written
+again loses nothing. Lines are written folded at 75 octets, never inside a
+character.</p>
+<ul>
+<li>Values are read when asked for: text with its escapes, dates and times
+  (floating, UTC, or in a named time zone), durations, offsets and rules of
+  recurrence.</li>
+<li>A time zone a file names is found in the file's own definition first, then
+  among the system's (<code>/usr/share/zoneinfo</code>), the name checked to be a zone's
+  name and nothing more. One is written for a zone by its yearly rule.</li>
+<li>Recurrences cover every part of a rule of recurrence, extra dates, dates taken
+  out, and occurrences changed one by one. They are expanded only within the
+  days asked for, and are checked against the examples in RFC 5545 itself.</li>
+</ul>
+<div class="node end"><span>Previous: <a href="04-syncing.html">Syncing</a></span><span>Next: <a href="06-safety-limits-and-failures.html">Safety, limits and what to do when it fails</a></span><span>Up: <a href="index.html">Contents</a></span></div>
+</article>
+</main>
+</div>
+</body>
+</html>
