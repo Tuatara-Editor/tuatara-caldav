@@ -1,0 +1,27 @@
+#+title: Every command and setting
+#+language: en
+
+* Every command and setting
+
+Each command and setting of caldav, to look one up by name.
+
+The tables are made from the program each time this manual is made, so they
+never list a command or setting that caldav does not have. The first
+table has four columns. The first two are keys: the modal keys, which work only
+with modal editing on, and the non-modal keys, which work with it off too. A
+command with no key says ~M-x~ and its name in the second column, because you
+can only run it by its name. The third column is the name of the command and the
+fourth says what it does.
+
+To run a command by its name, press ~M-x~, type a few letters of the name and
+press ~RET~. To find a command from within the editor, press ~C-h f~. To find
+the command that a key runs, press ~C-h k~ and then the key. The editor's own
+settings and commands are in chapters 21 and 22 of its manual.
+
+** Every command
+
+#+table: all-commands
+
+** Every setting
+
+#+table: all-settings

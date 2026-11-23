@@ -1,0 +1,94 @@
+#+title: Syncing
+#+language: en
+
+* Syncing
+
+When calendars are synced, and what each command does.
+
+** Automatic syncing
+
+The calendars sync on their own, a few seconds after Tuatara starts and then
+every minute, in the background. Nothing is said unless something changed or
+failed. A failure is told once, not again every minute while it lasts.
+
+A sync that finds nothing changed costs one request for each account's
+calendars, and reads and writes nothing on your drive.
+
+=*caldav-minutes*= sets how often. Give minutes, or words such as ="30m"= or
+="1h"=. It is never more often than once a minute. Give =nil=, or 0 or less, to
+sync only when asked.
+
+#+begin_src lisp
+(setf *caldav-minutes* 5)
+#+end_src
+
+** Syncing at once
+
+~C-c s s~ (=caldav-sync=) syncs every account's calendars and fetches the
+subscriptions, in the background. The first sync writes =agenda-caldav.org=
+beside your agenda file, a heading for each calendar, and the agenda shows its
+events. In an Org file or the agenda ~C-c s s~ works. =M-x caldav-sync= works
+anywhere.
+
+A sync sends what you changed in an entry and fetches what changed on the server
+since the last sync, then writes it into its entry. Only the lines that differ
+are changed, as one step to undo, and the file is saved. Your own lines in an
+entry (notes, checkboxes, clocks, properties of your own) are kept when the
+server's version is written.
+
+After each sync Tuatara says what it did in one line, and what failed after
+=failed:=. ~C-h e~ shows the messages again. A failed sync is also told as a
+notification, on the desktop and in =*Notifications*= (~C-h N~).
+
+** What happens to an entry
+
+- New entries under a calendar's heading become events on its server. Their UID
+  is written into them.
+- Deleted on the server: the entry is deleted too. One that holds lines of yours
+  (notes, checkboxes, clocks, properties of your own) stays. It is tagged
+  =removed= and no longer synced, and its times are made inactive
+  (=[2026-11-05 Thu]=) so the agenda shows it no more. Delete it when you are
+  done with it.
+- Deleted here: nothing happens on the server until ~C-c s d~ asks you. When you
+  answer no, the entries are put back.
+- Cancelled here (~C-c C-x C~, keyword =CANCELLED= or =CANCELED=): its event is
+  deleted on the server at the next sync, so it leaves your other devices. The
+  entry stays, tagged =removed= and no longer synced. The agenda still shows it,
+  cancelled. An entry cancelled before it was ever sent is not sent.
+- Changed on both sides: the server's version stands in the entry, and yours is
+  kept beside it, tagged =conflict= and no longer synced. Copy what you want
+  from it and delete it.
+
+** The other commands
+
+~C-c s l~ (=caldav-calendars=) says the calendars each account has and which of
+them are synced. It only asks the server, so it shows that Tuatara reaches it.
+It works when nothing else does.
+
+~C-c s d~ (=caldav-deleted=) deletes on the server the events whose entries you
+deleted, after asking. Answer no and the entries are put back, written in the
+background.
+
+~C-c s i~ (=caldav-import=) reads a calendar file (=.ics=) under one of your
+calendars, or under a heading of its own.
+
+~C-c s e~ (=caldav-export=) writes the entry at point and those under it, or the
+entries selected, as a calendar file, in the background. It is bound in Org
+files only.
+
+** A new event
+
+~C-c s n~ (=caldav-event-new=, or =M-x caldav-event-new= anywhere) asks which
+calendar when you have more than one, then the event's title, its place (~RET~
+for none) and its time in the calendar. A form opens with the cursor between the
+description block's two lines. Write the description there, or nothing.
+
+- ~C-c C-c~ files the event under the calendar's heading, and the server gets it
+  at the next sync.
+- ~C-c C-w~ files it under another heading instead.
+- ~C-c C-k~ throws it away.
+
+The =#+name: description= line marks the block as the description, so leave it
+as it is. A location or description left blank is none, and nothing is sent for
+it.
+

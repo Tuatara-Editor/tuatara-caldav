@@ -1,0 +1,23 @@
+# The checks every pull request goes through before it can be merged.
+name: Checks
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+permissions: {}
+jobs:
+  author:
+    uses: Tuatara-Editor/.github/.github/workflows/approved-author.yml@bd5ac4348fa292aaab824d2091df238c642f3b9e # main of 2026-11-23
+    with:
+      roles: admin maintain write
+      note: >-
+        Thank you for your interest in Tuatara. This package is written and
+        kept by the project's maintainers, who take no pull requests from
+        others: a bug report or an idea is welcome as an issue, and a package
+        of your own lives in a repository of your own; see CONTRIBUTING.md.
+    permissions:
+      pull-requests: write
+  sign-off:
+    needs: author
+    uses: Tuatara-Editor/.github/.github/workflows/sign-off.yml@bd5ac4348fa292aaab824d2091df238c642f3b9e # main of 2026-11-23
+    permissions:
+      pull-requests: read

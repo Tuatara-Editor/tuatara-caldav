@@ -1,0 +1,139 @@
+#+title: A calendar server
+#+language: en
+
+* A calendar server
+
+Setting up EteSync or Radicale for caldav to talk to.
+
+You need a calendar server, the package in Tuatara, and the server's password in
+your desktop's keyring. Pick one of two ways to have a server:
+
+- A. EteSync, if you have an EteSync account. Your calendars stay encrypted end
+  to end. A small program on your computer, etesync-dav, lets Tuatara,
+  Thunderbird and GNOME Calendar talk to them.
+- B. Your own Radicale, free, on a computer of yours that is on. You reach it
+  from your laptop and phone over Tailscale, a private network between your own
+  devices. Nothing is open to the internet.
+
+The examples write =you= for your user name, =EteSync= for an account's name and
+=home-server= for the computer that keeps the calendars. Write your own.
+
+** A. EteSync: run etesync-dav
+
+1. Download etesync-dav for Linux from its releases page,
+   https://github.com/etesync/etesync-dav/releases, into =~/.local/bin/=, and
+   make it runnable:
+
+   #+begin_example
+   chmod +x ~/.local/bin/etesync-dav
+   #+end_example
+
+   =pipx install etesync-dav= works too. On the newest Python versions one of
+   its parts may not build, and the download always works.
+
+2. Start it and add your account:
+
+   #+begin_example
+   etesync-dav manage add you      # asks your EteSync password once
+   etesync-dav manage get you      # shows the password for programs here
+   etesync-dav                     # keep this running
+   #+end_example
+
+   The password =manage get= shows is not your EteSync password. etesync-dav
+   made it for programs on this computer, and it is the one Tuatara needs. Its
+   page, http://localhost:37358/, shows the same with Copy Password.
+
+3. Have it start with your computer. Add =etesync-dav= to your desktop's startup
+   applications (GNOME: the Tweaks app, Startup Applications; KDE: System
+   Settings, Autostart).
+
+etesync-dav answers on =http://localhost:37358/= and only to this computer,
+which is why Tuatara may use plain http for it.
+
+** B. Your own Radicale, reached over Tailscale
+
+Do this on the computer that keeps your calendars: a desktop that is on, a small
+home server or a Raspberry Pi. It is called =home-server= here.
+
+1. Install Radicale and the password tools:
+
+   | System         | Command                                                  |
+   |----------------+----------------------------------------------------------|
+   | Fedora         | =sudo dnf install radicale httpd-tools python3-bcrypt=   |
+   | Debian, Ubuntu | =sudo apt install radicale apache2-utils python3-bcrypt= |
+   | Arch, Omarchy  | =sudo pacman -S radicale apache python-bcrypt=           |
+
+2. Make your user and its password. Use a long one of its own, not used anywhere
+   else. =-B= keeps it as a bcrypt hash, never as it is:
+
+   #+begin_example
+   sudo htpasswd -B -c /etc/radicale/users you
+   #+end_example
+
+3. Tell Radicale to listen to this computer alone and to ask for that password.
+   Edit =/etc/radicale/config= so these sections say:
+
+   #+begin_example
+   [server]
+   hosts = localhost:5232
+
+   [auth]
+   type = htpasswd
+   htpasswd_filename = /etc/radicale/users
+   htpasswd_encryption = autodetect
+
+   [rights]
+   type = owner_only
+   #+end_example
+
+   =owner_only= lets each user see their own calendars alone.
+
+4. Start it, now and at every start:
+
+   #+begin_example
+   sudo systemctl enable --now radicale
+   #+end_example
+
+   Open http://localhost:5232/ on that computer, log in, and make a calendar
+   (Create new addressbook or calendar). Tuatara syncs the calendars that are
+   there. It never makes one.
+
+5. Install Tailscale on this computer and on every device that should see your
+   calendars: https://tailscale.com/download. Sign in to the same account on
+   each, and on Linux run:
+
+   #+begin_example
+   sudo tailscale up
+   #+end_example
+
+6. Turn on HTTPS for your tailnet, once. In the Tailscale admin page,
+   https://login.tailscale.com/admin/dns, enable MagicDNS and HTTPS
+   Certificates.
+
+7. Give Radicale an https address on your tailnet, on =home-server=:
+
+   #+begin_example
+   sudo tailscale serve --bg 5232
+   tailscale serve status
+   #+end_example
+
+   The status shows its address, such as =https://home-server.tail1234.ts.net/=.
+   Only your own devices, signed in to your tailnet, can reach it, with a real
+   certificate. Nothing is open to the internet. Never use =tailscale funnel=,
+   which opens it to everyone, and never forward a port on your router for it.
+
+On =home-server= itself Tuatara may use =http://localhost:5232/=. On your other
+computers it uses the =https://...ts.net/= address.
+
+** The same calendars elsewhere
+
+- Thunderbird: File, New, Calendar, On the Network. Give the user name and the
+  address, then Find Calendars.
+- GNOME Calendar: Settings, Online Accounts, Calendar, Contacts and Files
+  (WebDAV). Give the address, user and password.
+- Android: the Tailscale app, then DAVx5 (Login with URL and user name), and any
+  calendar app.
+- iPhone and iPad: the Tailscale app, then Settings, Calendar, Accounts, Add
+  Account, Other, Add CalDAV Account.
+- Phones with EteSync: the EteSync app itself. etesync-dav is for computers.
+

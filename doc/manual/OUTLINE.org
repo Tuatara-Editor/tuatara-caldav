@@ -1,0 +1,12 @@
+#+title: caldav manual: chapters
+
+Each chapter covers one part of caldav, with its commands, keys and settings.
+The last chapter lists every command and setting, generated from the source.
+
+1. What caldav is
+2. A calendar server
+3. Accounts and passwords
+4. Syncing
+5. Events as Org entries
+6. Safety, limits and what to do when it fails
+7. Every command and setting
