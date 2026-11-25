@@ -543,12 +543,17 @@ read once (*VTIMEZONES-READ*)."
                     (calendar-pass-kept pass) (or (calendar-pass-kept pass) (not (equal new-token token))
                                                   (not (equal ctag (calendar-pass-ctag pass))))
                     (calendar-pass-events pass) (loop for a being the hash-values of by-url collect a)
-                    ;; deleted here: agreed, but no entry and nothing coming to make one
+                    ;; deleted here: agreed, but no entry, nothing coming to make one and not just sent from an
+                    ;; entry whose UID is still to be written in
                     (calendar-pass-missing pass)
                     (count-if (lambda (a) (and section (not (entry-of-uid section (agreed-uid a)))
                                                (not (find (agreed-uid a)
                                                           (calendar-pass-incoming pass)
                                                           :key #'first
+                                                          :test #'equal))
+                                               (not (find (agreed-uid a)
+                                                          (calendar-pass-new-uids pass)
+                                                          :key #'second
                                                           :test #'equal))))
                               (calendar-pass-events pass))))))))))
 

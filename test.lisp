@@ -1439,6 +1439,16 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
         (true (find-if (lambda (f) (search "refused the new event Walk" f)) (caldav::calendar-pass-failed pass))
               "failed: ~a" (caldav::calendar-pass-failed pass))))))
 
+(define-test (caldav new-entry-sent-not-counted-deleted)
+  ;; an entry made here with no UID yet is sent, and not counted as deleted here while its UID is not written in
+  (with-cs-state ()
+    (let* ((server (make-cs-server))
+           (url "https://cal.example.org/kiwi/home/")
+           (text (format nil "* Home~%:PROPERTIES:~%:CALENDAR: ~a~%:END:~%** Walk~%<2026-11-21 Sat>~%" url))
+           (pass (cs-pass server text)))
+      (is = 1 (caldav::calendar-pass-sent pass))
+      (is = 0 (caldav::calendar-pass-missing pass)))))
+
 (define-test (caldav counted-rule-starts-where-asked)
   ;; a rule of seconds counted in thousands of millions, begun years before, gives the times asked for at once
   (let ((start (get-internal-real-time))
