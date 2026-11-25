@@ -55,6 +55,15 @@ machine alone."
   (multiple-value-bind (scheme host) (url-parts url)
     (and scheme (or (string= scheme "https") (own-machine-p host)))))
 
+(defun redirect-allowed-p (from to)
+  "True when an answer from the web address FROM may send its request on to
+TO: by the same scheme, and to this machine only from this machine, so that a
+server elsewhere cannot have a request sent to a service here."
+  (multiple-value-bind (scheme host) (url-parts from)
+    (multiple-value-bind (to-scheme to-host) (url-parts to)
+      (and scheme to-scheme (string= scheme to-scheme)
+           (eq (not (own-machine-p host)) (not (own-machine-p to-host)))))))
+
 (defun url-joined (base href)
   "The hypertext reference (HREF), an address a server gave in answer to BASE,
 made whole: as it is when it has a scheme, on BASE's host when it begins with /,
@@ -166,9 +175,10 @@ number, or NIL) and why."
 
 (defun request (account method url &key headers body (redirects *most-redirects*))
   "Make the request METHOD to web address (URL) for ACCOUNT, as *TRANSPORT*
-does, following redirects to addresses that may be reached, and with ACCOUNT's
-password only to its own server: three values, the answer's status, its headers
-and its body, and the address answering as a fourth."
+does, following redirects to addresses that may be reached by the same scheme,
+to this machine only from it (REDIRECT-ALLOWED-P), and with ACCOUNT's password
+only to its own server: three values, the answer's status, its headers and its
+body, and the address answering as a fourth."
   (unless (url-allowed-p url)
     (caldav-fail "~a is not https, nor on this machine: not reached" url))
   ;; an account's password goes to its own server alone, whatever an answer names
@@ -180,10 +190,12 @@ and its body, and the address answering as a fourth."
                                       :user (getf account :user) :password (getf account :password))
     (let ((location (cdr (assoc "location" answer-headers :test #'string=))))
       (if (and (member status '(301 302 303 307 308)) location)
-          (if (plusp redirects)
-              (request account (if (= status 303) "GET" method) (url-joined url location)
-                       :headers headers :body (and (/= status 303) body) :redirects (1- redirects))
-              (caldav-fail "~a redirects too many times" url))
+          (let ((target (url-joined url location)))
+            (cond ((not (plusp redirects)) (caldav-fail "~a redirects too many times" url))
+                  ((not (redirect-allowed-p url target)) (caldav-fail "~a sends the request on to ~a: not followed"
+                                                                      url target))
+                  (t (request account (if (= status 303) "GET" method) target
+                              :headers headers :body (and (/= status 303) body) :redirects (1- redirects)))))
           (values status answer-headers answer url)))))
 
 (defun ok-status-p (status)

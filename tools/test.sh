@@ -12,7 +12,10 @@ if [ -z "${TUATARA_SOURCE:-}" ]; then
     if [ -d "$candidate" ]; then TUATARA_SOURCE="$candidate"; break; fi
   done
 fi
-[ -n "${TUATARA_SOURCE:-}" ] || { echo "No Tuatara source tree beside this repository: set TUATARA_SOURCE" >&2; exit 1; }
+if [ -z "${TUATARA_SOURCE:-}" ]; then
+  echo "No Tuatara source tree beside this repository: set TUATARA_SOURCE" >&2
+  exit 1
+fi
 TUATARA_SOURCE="$(realpath "$TUATARA_SOURCE")"
 export TUATARA_SOURCE
 . "$TUATARA_SOURCE/tools/inside.sh"

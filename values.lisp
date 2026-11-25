@@ -37,19 +37,9 @@ ICAL-TEXT reads one."
     (push (subseq value start) parts)
     (mapcar #'ical-text (nreverse parts))))
 
-(defun ical-text-escaped (text)
-  "TEXT as a text property's value is written: \\ ; and , after a backslash, line breaks as \\n."
-  (with-output-to-string (out)
-    (loop for c across text
-          do (case c
-               ((#\\ #\; #\,) (write-char #\\ out) (write-char c out))
-               (#\Newline (write-string "\\n" out))
-               (#\Return)
-               (t (write-char c out))))))
-
 (defun ical-texts-escaped (texts)
   "TEXTS, a list of texts, as one property's value of several, apart by commas."
-  (format nil "~{~a~^,~}" (mapcar #'ical-text-escaped texts)))
+  (format nil "~{~a~^,~}" (mapcar #'content-text-escaped texts)))
 
 ;;; Dates and times
 

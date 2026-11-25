@@ -781,7 +781,7 @@ sequence number."
          ;; a field left blank, as a form leaves it, is none
          (description (unless-blank (entry-description entry)))
          (location (unless-blank (entry-property entry "LOCATION")))
-         (summary (ical-text-escaped (summary-words (agenda-entry-get entry :title)))))
+         (summary (content-text-escaped (summary-words (agenda-entry-get entry :title)))))
     (lambda (kept-master kind status)
       (let ((categories (loop for tag in tags
                               collect (or (and kept-master
@@ -792,10 +792,10 @@ sequence number."
             (sequence (and (eq kind :changed) kept-master (ical-value-of kept-master "SEQUENCE"))))
         (remove nil
                 (list (make-ical-property "SUMMARY" summary)
-                      (and location (make-ical-property "LOCATION" (ical-text-escaped location)))
+                      (and location (make-ical-property "LOCATION" (content-text-escaped location)))
                       (and categories (make-ical-property "CATEGORIES" (ical-texts-escaped categories)))
                       (and status (make-ical-property "STATUS" status))
-                      (and description (make-ical-property "DESCRIPTION" (ical-text-escaped description)))
+                      (and description (make-ical-property "DESCRIPTION" (content-text-escaped description)))
                       (ical-time-property "DTSTAMP" stamp)
                       (and sequence
                            (make-ical-property "SEQUENCE"

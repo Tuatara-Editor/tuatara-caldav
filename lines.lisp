@@ -189,19 +189,6 @@ components deeper than *ICALENDAR-DEEPEST*."
 
 ;;; Writing
 
-(defun parameter-value-text (value)
-  "VALUE, a parameter's value, as written: ^ and line breaks and \" as Request
-for Comments (RFC) 6868 writes them, quoted when it holds ; : or ,."
-  (let ((encoded (if (find-if (lambda (c) (find c (load-time-value (coerce (list #\^ #\Newline #\") 'string) t))) value)
-                     (with-output-to-string (out)
-                       (loop for c across value
-                             do (case c (#\^ (write-string "^^" out)) (#\Newline (write-string "^n" out))
-                                  (#\" (write-string "^'" out)) (t (write-char c out)))))
-                     value)))
-    (if (find-if (lambda (c) (find c ";:,")) encoded)
-        (concatenate 'string "\"" encoded "\"")
-        encoded)))
-
 (defun property-line (property)
   "PROPERTY as one unfolded line."
   (with-output-to-string (out)
@@ -209,7 +196,7 @@ for Comments (RFC) 6868 writes them, quoted when it holds ; : or ,."
     (loop for (name . values) in (ical-property-parameters property)
           do (write-char #\; out) (write-string name out) (write-char #\= out)
              (loop for (value . more) on values
-                   do (write-string (parameter-value-text value) out)
+                   do (write-string (content-parameter-text value) out)
                       (when more (write-char #\, out))))
     (write-char #\: out)
     (write-string (ical-property-value property) out)))

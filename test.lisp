@@ -86,7 +86,7 @@ before TO, local times all, the first MOST of them."
 
 (define-test (caldav values)
   (is string= (format nil "a, b; c\\ d~%e") (caldav::ical-text "a\\, b\\; c\\\\ d\\ne"))
-  (is string= "a\\, b\\; c\\\\ d\\ne" (caldav::ical-text-escaped (format nil "a, b; c\\ d~%e")))
+  (is string= "a\\, b\\; c\\\\ d\\ne" (tuatara:content-text-escaped (format nil "a, b; c\\ d~%e")))
   (is equal '("work" "a, b" "home") (caldav::ical-texts "work,a\\, b,home"))
   (is string= "work,a\\, b" (caldav::ical-texts-escaped '("work" "a, b")))
   ;; dates and times
@@ -530,7 +530,7 @@ end, a note, a checkbox, timestamps and a clock.")
 (define-test (caldav untrusted-words-stay-words)
   (let ((calendar (cs-calendar "BEGIN:VEVENT" "UID:odd@example.org"
                                "SUMMARY:TODO [[file:/etc/passwd]] costs $5 \\\\input{x} <2026-11-05 Thu> :x:"
-                               (format nil "DESCRIPTION:~a" (caldav::ical-text-escaped *cs-description*))
+                               (format nil "DESCRIPTION:~a" (tuatara:content-text-escaped *cs-description*))
                                "LOCATION:Room <2026-11-06 Fri>"
                                "DTSTART;VALUE=DATE:20261103" "END:VEVENT")))
     (multiple-value-bind (text entries) (cs-entries calendar)
@@ -853,7 +853,24 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
     (fail (caldav::request '(:name "Home" :url "https://cal.example.org/" :user "kiwi" :password "x")
                            "GET"
                            "https://other.example.net/kiwi/")
-          'caldav::caldav-error)))
+          'caldav::caldav-error))
+  ;; a server elsewhere cannot send a request on to this machine, nor from https to http; this machine to
+  ;; itself, and one server to another by https, are followed
+  (let* ((asked '())
+         (caldav::*transport* (lambda (method url &rest r) (declare (ignore method r))
+                                (push url asked)
+                                (cond ((search "cal.example.org" url)
+                                       (values 302 '(("location" . "http://localhost:8080/admin")) ""))
+                                      ((search "moved.example.org" url)
+                                       (values 302 '(("location" . "https://new.example.org/cal")) ""))
+                                      ((search "localhost:5232" url)
+                                       (values 302 '(("location" . "http://127.0.0.1:5233/cal")) ""))
+                                      (t (values 200 '() ""))))))
+    (fail (caldav::request '() "GET" "https://cal.example.org/") 'caldav::caldav-error)
+    (false (member "http://localhost:8080/admin" asked :test #'string=))
+    (is string= "https://new.example.org/cal" (nth-value 3 (caldav::request '() "GET" "https://moved.example.org/")))
+    (is string= "http://127.0.0.1:5233/cal" (nth-value 3 (caldav::request '() "GET" "http://localhost:5232/")))
+    (false (caldav::redirect-allowed-p "https://localhost/" "http://localhost/"))))
 
 (define-test (caldav calendars-synced-both-ways)
   (with-cs-state ()
@@ -1483,28 +1500,86 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
           (true (search "** Walk" (second (first (caldav::calendar-pass-incoming pass))))))))))
 
 (define-test (caldav deleted-asked-at-a-short-prompt)
-  ;; asked whether to delete on the server: a short question, the events' titles and what each answer
-  ;; does in its details beside it
-  (let (asked)
-    (sb-int:encapsulate 'caldav::missing-events 'three (lambda (f) (declare (ignore f)) (list 1 2 3)))
+  ;; the calendars' file and the copies of the events are read in the background, the command returning at
+  ;; once; the question comes when that job is taken in: a short question, the events' titles and what each
+  ;; answer does in its details beside it
+  (let ((asked nil) (started '()) (calendars (tuatara.buffer:make-buffer "cs-calendars")))
+    (sb-int:encapsulate 'caldav::calendars-buffer 'scratch (lambda (f) (declare (ignore f)) calendars))
+    (sb-int:encapsulate 'caldav::missing-events 'three (lambda (f text) (declare (ignore f text)) (list 1 2 3)))
     (sb-int:encapsulate 'caldav::missing-title 'titled
                         (lambda (f missing) (declare (ignore f)) (format nil "Event number ~d" missing)))
     (sb-int:encapsulate 'tuatara:yes-or-no-p* 'noted
                         (lambda (f prompt &rest keys) (declare (ignore f)) (setf asked (cons prompt keys)) nil))
-    (sb-int:encapsulate 'tuatara:start-job-thread 'held (lambda (f &rest arguments) (declare (ignore f arguments))))
+    (sb-int:encapsulate 'tuatara:start-job-thread 'held
+                        (lambda (f job work &rest arguments)
+                          (declare (ignore f arguments))
+                          (push (cons job work) started)))
     (sb-int:encapsulate 'tuatara:take-in-soon 'held (lambda (f &rest arguments) (declare (ignore f arguments))))
-    (unwind-protect (caldav::caldav-deleted)
-      (dolist (name '(caldav::missing-events caldav::missing-title tuatara:yes-or-no-p* tuatara:start-job-thread
-                      tuatara:take-in-soon))
+    (unwind-protect
+         (progn
+           (caldav::caldav-deleted)
+           (false asked)
+           (is = 1 (length started))
+           (destructuring-bind (job . work) (first started)
+             (true (caldav::text-reading-job-p job))
+             (funcall work job)
+             (caldav::job-take-in job)))
+      (dolist (name '(caldav::calendars-buffer caldav::missing-events caldav::missing-title tuatara:yes-or-no-p*
+                      tuatara:start-job-thread tuatara:take-in-soon))
         (sb-int:unencapsulate name (case name
+                                     (caldav::calendars-buffer 'scratch)
                                      (caldav::missing-events 'three) (caldav::missing-title 'titled)
-                                     (tuatara:yes-or-no-p* 'noted) (t 'held)))))
+                                     (tuatara:yes-or-no-p* 'noted) (t 'held))))
+      (tuatara.buffer:kill-buffer calendars))
     (let ((prompt (first asked)) (details (getf (rest asked) :details)))
       (true (search "3 events" prompt) "~a" prompt)
       (true (< (length prompt) 60) "~d columns" (length prompt))
       (false (search "Event number" prompt))
       (true (search "Event number 2" details) "~a" details)
       (true (search "no puts them back" details)))))
+
+(define-test (caldav deleted-job-belongs-to-the-buffer-it-began-in)
+  ;; the question comes when the reading job is taken in, by when another buffer may be the current one;
+  ;; the job started after the answer still belongs to the buffer the command began in
+  (let* ((began (tuatara.buffer:make-buffer "cs-began")) (later (tuatara.buffer:make-buffer "cs-later"))
+         (calendars (tuatara.buffer:make-buffer "cs-calendars")) (shown began) (started '()))
+    (sb-int:encapsulate 'tuatara:current-buffer 'shown (lambda (f) (declare (ignore f)) shown))
+    (sb-int:encapsulate 'caldav::calendars-buffer 'scratch (lambda (f) (declare (ignore f)) calendars))
+    (sb-int:encapsulate 'caldav::missing-events 'one (lambda (f text) (declare (ignore f text)) (list 1)))
+    (sb-int:encapsulate 'caldav::missing-title 'titled (lambda (f missing) (declare (ignore f missing)) "Event"))
+    (sb-int:encapsulate 'tuatara:yes-or-no-p* 'switching
+                        (lambda (f &rest arguments) (declare (ignore f arguments)) (setf shown later) nil))
+    (sb-int:encapsulate 'tuatara:start-job-thread 'held
+                        (lambda (f job work &rest arguments)
+                          (declare (ignore f arguments))
+                          (push (cons job work) started)))
+    (sb-int:encapsulate 'tuatara:take-in-soon 'held (lambda (f &rest arguments) (declare (ignore f arguments))))
+    (unwind-protect
+         (progn
+           (caldav::caldav-deleted)
+           (destructuring-bind (job . work) (first started)
+             (funcall work job)
+             (caldav::job-take-in job))
+           (is = 2 (length started))
+           (is eq began (tuatara.runtime:job-buffer (car (first started)))))
+      (dolist (name '(tuatara:current-buffer caldav::calendars-buffer caldav::missing-events caldav::missing-title
+                      tuatara:yes-or-no-p* tuatara:start-job-thread tuatara:take-in-soon))
+        (sb-int:unencapsulate name (case name
+                                     (tuatara:current-buffer 'shown) (caldav::calendars-buffer 'scratch)
+                                     (caldav::missing-events 'one) (caldav::missing-title 'titled)
+                                     (tuatara:yes-or-no-p* 'switching) (t 'held))))
+      (dolist (buffer (list began later calendars)) (tuatara.buffer:kill-buffer buffer)))))
+
+(define-test (caldav export-entries-chosen-by-octets)
+  ;; the entries written are chosen from point or the selection, octet positions, on the job's thread
+  (let ((text (format nil "* Café~%* Two~%** Under~%* Three~%")))
+    (is = 7 (caldav::text-char-index text 8))
+    (flet ((titles (region point)
+             (mapcar (lambda (e) (tuatara:agenda-entry-get e :title))
+                     (caldav::export-chosen-entries "/x/walks.org" text region point))))
+      (is equal '("Two" "Under") (titles nil 8))
+      (is equal '("Café") (titles nil 3))
+      (is equal '("Under" "Three") (titles (list 16 (length (tuatara.text:string-octets text))) 0)))))
 
 (define-test (caldav zones-read-once-a-calendar)
   ;; a calendar of 1,000 events in its own time zone: the zone read once

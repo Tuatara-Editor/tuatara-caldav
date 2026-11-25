@@ -52,6 +52,43 @@ are while the file is as JOB took it down; else CHANGE is run on its text now."
       (save-buffer-with-care buffer)
       t)))
 
+(define-record (text-reading-job (:include job) (:constructor make-text-reading-job (buffer text work then))
+                                 (:copier nil))
+  "Working out from TEXT, a file's text as it stood when the job started, what
+a command asks about: WORK, a function of the text, gives it on the job's own
+thread, and THEN, a function of what WORK gave, asks on the editor's."
+  (text nil :documentation "The text TEXT-READING-JOB works from.")
+  (work nil :documentation "What TEXT-READING-JOB works out, a function of its text.")
+  (then nil :documentation "What is done with what was worked out, on the editor's thread, a function of it.")
+  (found nil :documentation "What WORK gave of the text.")
+  (done nil :documentation "True once WORK has given what it found."))
+
+(define-job-words text-reading-job
+  :doing "Reading entries"
+  :description "Reading the entries a command asks about"
+  :verb "read the entries"
+  :left-words "nothing asked")
+
+(defmethod job-take-in ((job text-reading-job))
+  "Ask what the command asks, with what was worked out."
+  (if (text-reading-job-done job)
+      (funcall (text-reading-job-then job) (text-reading-job-found job))
+      (message "The entries were not read: ~a" (job-ending-words job))))
+
+(defun text-reading-work (job)
+  "Work out what JOB, a TEXT-READING-JOB, is for from its text: JOB's work."
+  (setf (text-reading-job-found job) (funcall (text-reading-job-work job) (text-reading-job-text job))
+        (text-reading-job-done job) t))
+
+(defun with-text-read (text words work then)
+  "Work out in the background what WORK, a function of TEXT, a file's text,
+gives of it, then call THEN with that on the editor's thread, so that a
+command parses the file before its question without holding the editor up.
+WORDS say what is being done, should it take long enough to be said."
+  (let ((job (make-text-reading-job (current-buffer) text work then)))
+    (start-job-thread job #'text-reading-work :name "tuatara caldav reading")
+    (take-in-soon job 0.2 words)))
+
 (defun account-of (url)
   "The account of *CALDAV-ACCOUNTS* whose server holds the calendar at
 web address (URL): the one on its host, else the first."
@@ -246,13 +283,12 @@ background."
   "Start syncing the calendars in the background, QUIET for a sync on its
 own (CALDAV-JOB), and return its job."
   (let* ((buffer (calendars-buffer))
-         (job (make-caldav-job buffer quiet))
-         (text (buffer-string buffer)))
+         (job (make-caldav-job buffer quiet)))
     (setf *sync-job* job)
     (note-calendars-file job buffer)
     (start-job-thread job
                       (lambda (job)
-                        (sync-work job text)
+                        (sync-work job (third (calendars-file-job-before job)))
                         (when (some #'calendar-pass-edits-p (caldav-job-passes job))
                           (prepare-calendars-change job (sync-change job))))
                       :name "tuatara caldav")))
@@ -332,12 +368,11 @@ Tuatara reaches the server, and what it finds there. In the background."
 
 ;;; Entries deleted here
 
-(defun missing-events ()
-  "The events the calendars' file no longer has an entry of, under a
+(defun missing-events (text)
+  "The events TEXT, the calendars' file, no longer has an entry of, under a
 calendar's heading that is there: each a directory, an agreed event and the
 calendar's web address (URL), as (DIRECTORY AGREED URL)."
-  (let* ((text (buffer-string (calendars-buffer)))
-         (sections (calendar-sections text (file-entries text))))
+  (let ((sections (calendar-sections text (file-entries text))))
     (loop for section in sections
           for directory = (calendar-directory (getf section :url))
           nconc (loop for a in (nth-value 1 (read-calendar-state directory))
@@ -397,8 +432,9 @@ FAILURE-SAID gives, and the others are deleted all the same."
                         (calendar-delete-job-failed job)))))
         (error (e) (push (format nil "~a: ~a" (missing-title m) (failure-said e)) (calendar-delete-job-failed job)))))))
 
-(define-record (calendar-restore-job (:include calendars-file-job) (:constructor make-calendar-restore-job (buffer missing))
-                                    (:copier nil))
+(define-record (calendar-restore-job (:include calendars-file-job)
+                                     (:constructor make-calendar-restore-job (buffer missing))
+                                     (:copier nil))
   "Writing again, as their servers have them, the entries deleted from the
 calendars' file of the events of MISSING (MISSING-EVENTS)."
   (missing nil :documentation "The events whose entries are written again, as MISSING-EVENTS gives them.")
@@ -437,23 +473,31 @@ held together to the periods of WITH-PERIODS-TOGETHER: JOB's work."
 (define-command caldav-deleted ()
   "Delete on their servers the events whose entries were deleted from the
 calendars' file, after asking; or, answered no, put their entries back as
-the server has them, written in the background."
-  (let ((missing (missing-events)))
-    (cond
-      ((null missing) (message "Every event synced still has its entry"))
-      ((yes-or-no-p* (format nil "Delete on the server ~:d event~:p deleted here? " (length missing))
-                     :details (format nil "Deleted here, still on the server:~%~{  ~a~%~}~%~
-                                           yes deletes ~[them~;it~:;them~] on the server; no puts ~
-                                           ~:*~[them~;it~:;them~] back in the file as the server has ~
-                                           ~:*~[them~;it~:;them~].~%"
-                                      (mapcar #'missing-title missing) (length missing)))
-       (let ((job (make-calendar-delete-job (current-buffer) missing)))
-         (start-job-thread job #'delete-missing-work :name "tuatara caldav delete")
-         (take-in-soon job 0 "Deleting the events on their servers")))
-      (t
-       (let ((job (make-calendar-restore-job (current-buffer) missing)))
-         (start-job-thread job #'restore-missing-work :name "tuatara caldav restore")
-         (take-in-soon job 0.2 "Writing the entries again"))))))
+the server has them, written in the background. The calendars' file and the
+copies of the events are read in the background before it asks."
+  (let ((buffer (current-buffer)))
+    (with-text-read
+     (buffer-string (calendars-buffer)) "Looking for the entries deleted"
+     (lambda (text)
+       (let ((missing (missing-events text)))
+         (cons missing (mapcar #'missing-title missing))))
+     (lambda (found)
+       (destructuring-bind (missing . titles) found
+         (cond
+           ((null missing) (message "Every event synced still has its entry"))
+           ((yes-or-no-p* (format nil "Delete on the server ~:d event~:p deleted here? " (length missing))
+                          :details (format nil "Deleted here, still on the server:~%~{  ~a~%~}~%~
+                                                yes deletes ~[them~;it~:;them~] on the server; no puts ~
+                                                ~:*~[them~;it~:;them~] back in the file as the server has ~
+                                                ~:*~[them~;it~:;them~].~%"
+                                           titles (length missing)))
+            (let ((job (make-calendar-delete-job buffer missing)))
+              (start-job-thread job #'delete-missing-work :name "tuatara caldav delete")
+              (take-in-soon job 0 "Deleting the events on their servers")))
+           (t
+            (let ((job (make-calendar-restore-job buffer missing)))
+              (start-job-thread job #'restore-missing-work :name "tuatara caldav restore")
+              (take-in-soon job 0.2 "Writing the entries again")))))))))
 
 ;;; Calendar files
 
@@ -466,7 +510,8 @@ calendar's web address (URL), as (TITLE . URL)."
 (defparameter *not-synced* "Not synced: under a heading of its own"
   "The choice of CALDAV-IMPORT that puts what it reads under a heading of its own.")
 
-(define-record (calendar-import-job (:include calendars-file-job) (:constructor make-calendar-import-job (buffer path url))
+(define-record (calendar-import-job (:include calendars-file-job)
+                                    (:constructor make-calendar-import-job (buffer path url))
                                     (:copier nil))
   "Reading the calendar file at PATH into the calendars' file, under the calendar at the web address (URL), NIL for
 a heading of its own."
@@ -514,37 +559,41 @@ calendar's heading, or under one of their own at the end."
            (message "~:d event~:p imported into ~a~:[~; (sent at the next sync)~]"
                     (calendar-import-job-count job) (abbreviated-path (sync-file-path)) url)))))
 
+(defun import-work (job)
+  "Read JOB's calendar file as Org entries and work out the change they make
+to the calendars' file: JOB's work. Why it could not be read is kept."
+  (let ((path (calendar-import-job-path job)))
+    (handler-case
+        (progn
+          (dolist (c (icalendar-read (octets-string (file-octets path :limit *icalendar-largest*))))
+            (job-check-stop)
+            (multiple-value-bind (text count) (calendar-entries c)
+              (setf (calendar-import-job-entries job)
+                    (concatenate 'string (or (calendar-import-job-entries job) "") text))
+              (incf (calendar-import-job-count job) count)))
+          (when (plusp (calendar-import-job-count job))
+            (prepare-calendars-change job (import-change job))))
+      (error (e)
+        (setf (calendar-import-job-failed job) (format nil "~a not imported: ~a" (abbreviated-path path) e))))))
+
 (define-command caldav-import ()
   "Read a calendar file (.ics) into the calendars' file: under one of your
 calendars, whose server gets its events at the next sync, or under a
 heading of its own, never synced. Read in the background."
-  (let ((path (read-file-path "Import the calendar file: ")))
+  (let ((path (read-file-path "Import the calendar file: ")) (buffer (current-buffer)))
     (when path
-      (let* ((native-path (native (expand-path path)))
-             (headings (calendar-headings (buffer-string (calendars-buffer))))
-             (target (completing-read "Import into: " (cons *not-synced* (mapcar #'car headings)) :require-match t)))
-        (when target
-          (let ((job (make-calendar-import-job (current-buffer) native-path
-                                               (cdr (assoc target headings :test #'string=)))))
-            (note-calendars-file job)
-            (start-job-thread job
-                              (lambda (job)
-                                (handler-case
-                                    (progn
-                                      (dolist (c (icalendar-read
-                                                  (octets-string (file-octets native-path :limit *icalendar-largest*))))
-                                        (job-check-stop)
-                                        (multiple-value-bind (text count) (calendar-entries c)
-                                          (setf (calendar-import-job-entries job)
-                                                (concatenate 'string (or (calendar-import-job-entries job) "") text))
-                                          (incf (calendar-import-job-count job) count)))
-                                      (when (plusp (calendar-import-job-count job))
-                                        (prepare-calendars-change job (import-change job))))
-                                  (error (e)
-                                         (setf (calendar-import-job-failed job)
-                                               (format nil "~a not imported: ~a" (abbreviated-path native-path) e)))))
-                              :name "tuatara caldav import")
-            (take-in-soon job 0.2 "Reading the calendar file")))))))
+      (let ((native-path (native (expand-path path))))
+        (with-text-read
+         (buffer-string (calendars-buffer)) "Reading the calendars' headings" #'calendar-headings
+         (lambda (headings)
+           (let ((target (completing-read "Import into: " (cons *not-synced* (mapcar #'car headings))
+                                          :require-match t)))
+             (when target
+               (let ((job (make-calendar-import-job buffer native-path
+                                                    (cdr (assoc target headings :test #'string=)))))
+                 (note-calendars-file job)
+                 (start-job-thread job #'import-work :name "tuatara caldav import")
+                 (take-in-soon job 0.2 "Reading the calendar file"))))))))))
 
 (define-record (calendar-export-job (:include job) (:constructor make-calendar-export-job (buffer entries path))
                                    (:copier nil))
@@ -587,32 +636,50 @@ Nothing is written when none says a time."
           (replace-file (calendar-export-job-path job) (icalendar-write whole))
           (setf (calendar-export-job-count job) (length calendars)))))))
 
+(defun text-char-index (text octet)
+  "The index in TEXT of the character its UTF-8 octet OCTET begins: how many
+characters come before that octet."
+  (let ((at 0) (index 0))
+    (loop while (and (< index (length text)) (< at octet))
+          do (incf at (char-octet-length (char text index)))
+             (incf index))
+    index))
+
+(defun export-chosen-entries (name text region point)
+  "The entries of TEXT, the Org file NAME, that CALDAV-EXPORT writes: those
+REGION, a selection (FROM TO) in octets, touches, or with none the entry at
+POINT, an octet position, and those under it."
+  (let ((entries (org-agenda-file-entries name text)))
+    (if region
+        (let ((from (text-char-index text (first region)))
+              (to (text-char-index text (second region))))
+          (remove-if-not (lambda (e) (and (< (agenda-entry-get e :position) to) (> (agenda-entry-get e :end) from)))
+                         entries))
+        (let* ((at (text-char-index text point))
+               (here (find-if (lambda (e) (<= (agenda-entry-get e :position) at)) entries :from-end t)))
+          (and here (cons here (loop for e in (rest (member here entries))
+                                     while (> (agenda-entry-get e :level) (agenda-entry-get here :level))
+                                     collect e)))))))
+
 (define-command caldav-export ()
   "Write the entry at point and those under it, or the entries selected, as
 a calendar file (.ics) other calendars read: their times, title, place,
-tags and description. Written in the background."
-  (let* ((buffer (current-buffer))
-         (text (buffer-string buffer))
-         (entries (org-agenda-file-entries (or (buffer-file buffer) (buffer-name buffer)) text))
-         (region (selected-region buffer))
-         (chosen (if region
-                     (let ((from (length (buffer-string buffer :end (first region))))
-                           (to (length (buffer-string buffer :end (second region)))))
-                       (remove-if-not (lambda (e) (and (< (agenda-entry-get e :position) to)
-                                                       (> (agenda-entry-get e :end) from)))
-                                      entries))
-                     (let* ((at (length (buffer-string buffer :end (buffer-point buffer))))
-                            (here (find-if (lambda (e) (<= (agenda-entry-get e :position) at)) entries :from-end t)))
-                       (and here (cons here (loop for e in (rest (member here entries))
-                                                  while (> (agenda-entry-get e :level) (agenda-entry-get here :level))
-                                                  collect e)))))))
-    (if (null chosen)
-        (message "No entry here to write as a calendar file")
-        (let ((path (read-new-native-path "Write the calendar file: ")))
-          (when path
-            (let ((job (make-calendar-export-job buffer chosen path)))
-              (start-job-thread job #'export-entries-work :name "tuatara caldav export")
-              (take-in-soon job 0.2 "Writing the calendar file")))))))
+tags and description. The entries are read and written in the background."
+  (let ((buffer (current-buffer)))
+    (with-text-read
+     (buffer-string buffer) "Reading the entries"
+     (let ((name (or (buffer-file buffer) (buffer-name buffer)))
+           (region (selected-region buffer))
+           (point (buffer-point buffer)))
+       (lambda (text) (export-chosen-entries name text region point)))
+     (lambda (chosen)
+       (if (null chosen)
+           (message "No entry here to write as a calendar file")
+           (let ((path (read-new-native-path "Write the calendar file: ")))
+             (when path
+               (let ((job (make-calendar-export-job buffer chosen path)))
+                 (start-job-thread job #'export-entries-work :name "tuatara caldav export")
+                 (take-in-soon job 0.2 "Writing the calendar file")))))))))
 
 ;;; New events
 
@@ -632,14 +699,16 @@ nothing. \\<org-capture-mode>\\[org-capture-finalize] files the event under the
 calendar's heading, and the server gets it at the next sync;
 \\[org-capture-refile] files it under another heading, \\[org-capture-kill]
 throws it away."
-  (let ((headings (calendar-headings (buffer-string (calendars-buffer)))))
-    (if (null headings)
-        (message "No calendars synced yet: ~a syncs them" (substitute-command-keys "\\<org-mode>\\[caldav-sync]"))
-        (let ((calendar (if (rest headings)
-                            (completing-read "New event in: " (mapcar #'car headings) :require-match t)
-                            (car (first headings)))))
-          (when calendar
-            (org-capture-with "Calendar event" (list :olp (sync-file-path) calendar) *new-event-form*))))))
+  (with-text-read
+   (buffer-string (calendars-buffer)) "Reading the calendars' headings" #'calendar-headings
+   (lambda (headings)
+     (if (null headings)
+         (message "No calendars synced yet: ~a syncs them" (substitute-command-keys "\\<org-mode>\\[caldav-sync]"))
+         (let ((calendar (if (rest headings)
+                             (completing-read "New event in: " (mapcar #'car headings) :require-match t)
+                             (car (first headings)))))
+           (when calendar
+             (org-capture-with "Calendar event" (list :olp (sync-file-path) calendar) *new-event-form*)))))))
 
 ;;; Keys
 

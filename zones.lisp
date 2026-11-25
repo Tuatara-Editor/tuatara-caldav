@@ -174,7 +174,7 @@ has it, by rule, or by dates FIRST-YEAR to LAST-YEAR where no rule can say it."
                                                   (make-ical-property "TZOFFSETFROM" (utc-offset-text from))
                                                   (make-ical-property "TZOFFSETTO" (utc-offset-text to)))
                                             (when (plusp (length label))
-                                              (list (make-ical-property "TZNAME" (ical-text-escaped label))))
+                                              (list (make-ical-property "TZNAME" (content-text-escaped label))))
                                             (if recur
                                                 (list (make-ical-property "RRULE" (ical-recur-text recur)))
                                                 (list (make-ical-property
@@ -187,7 +187,7 @@ has it, by rule, or by dates FIRST-YEAR to LAST-YEAR where no rule can say it."
                                                                                               (mod at 86400)))))))))))))
       (make-ical-component
        "VTIMEZONE"
-       (list (make-ical-property "TZID" (ical-text-escaped name)))
+       (list (make-ical-property "TZID" (content-text-escaped name)))
        (cond ((and rule (zone-rule-to-daylight rule))
               (let ((standard (zone-rule-standard-offset rule)) (daylight (zone-rule-daylight-offset rule)))
                 (destructuring-bind (to-daylight daylight-time) (zone-rule-to-daylight rule)
@@ -211,5 +211,5 @@ has it, by rule, or by dates FIRST-YEAR to LAST-YEAR where no rule can say it."
                                                            (make-ical-property "TZOFFSETFROM" (utc-offset-text offset))
                                                            (make-ical-property "TZOFFSETTO" (utc-offset-text offset)))
                                                      (when (plusp (length label))
-                                                       (list (make-ical-property "TZNAME"
-                                                                                 (ical-text-escaped label))))))))))))))
+                                                       (list (make-ical-property
+                                                              "TZNAME" (content-text-escaped label))))))))))))))
