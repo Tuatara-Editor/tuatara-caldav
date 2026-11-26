@@ -304,19 +304,19 @@ time NOW; NIL when Org cannot say them."
                    (dolist (p (ical-properties-of master "EXDATE"))
                      (dolist (time (ical-property-times p))
                        (push (org-occurrence-note :cancelled (occurrence-of time) nil now) notes)))
-                 (dolist (c changes)
-                   (let* ((id (ical-property-time (ical-property-of c "RECURRENCE-ID")))
-                          (from (and id (occurrence-of id))))
-                     (when from
-                       (if (string-equal (or (ical-value-of c "STATUS") "") "CANCELLED")
-                           (push (org-occurrence-note :cancelled from nil now) notes)
-                           (multiple-value-bind (moved-start moved-end moved-whole) (event-span c zones zone)
-                             (declare (ignore moved-end))
-                             (let ((to (and moved-start
-                                            (occurrence-of-local (if moved-whole (* 86400 moved-start) moved-start)
-                                                                 moved-whole))))
-                               (when (and to (not (equal to from)))
-                                 (push (org-occurrence-note :moved from to now) notes)))))))))
+                   (dolist (c changes)
+                     (let* ((id (ical-property-time (ical-property-of c "RECURRENCE-ID")))
+                            (from (and id (occurrence-of id))))
+                       (when from
+                         (if (string-equal (or (ical-value-of c "STATUS") "") "CANCELLED")
+                             (push (org-occurrence-note :cancelled from nil now) notes)
+                             (multiple-value-bind (moved-start moved-end moved-whole) (event-span c zones zone)
+                               (declare (ignore moved-end))
+                               (let ((to (and moved-start
+                                              (occurrence-of-local (if moved-whole (* 86400 moved-start) moved-start)
+                                                                   moved-whole))))
+                                 (when (and to (not (equal to from)))
+                                   (push (org-occurrence-note :moved from to now) notes)))))))))
                  ;; more times cancelled or moved than are written out: its times written out instead
                  (when (> (length notes) *most-times-written*)
                    (return-from org-times-of nil))

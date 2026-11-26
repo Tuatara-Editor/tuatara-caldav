@@ -22,7 +22,7 @@ what to do when a sync fails.
 
 ## What it needs
 
-- Tuatara 0.90.44 or later.
+- Tuatara 0.90.47 or later.
 - `curl`, which makes every request, and `secret-tool`, which keeps the
   server's password in your desktop's keyring. Most Linux systems have them.
 - A CalDAV server, set up as the manual says.

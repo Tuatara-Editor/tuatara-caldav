@@ -1426,6 +1426,29 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
                (is = 1 (count "PROPFIND" (cs-server-requests server) :key #'first :test #'string=)))
           (sb-int:unencapsulate 'caldav::agreed-calendar 'cs-read))))))
 
+(define-test (caldav quiet-sync-that-could-not-save-is-not-agreed)
+  ;; a file changed on disk is not saved by a sync that asks nothing: that is said, and the calendars are
+  ;; not recorded as agreed with their server
+  (with-cs-state ()
+    (let* ((directory (merge-pathnames (format nil "tuatara-cs-file-~d/" (sb-posix:getpid)) (uiop:temporary-directory)))
+           (file (namestring (merge-pathnames "calendars.org" directory)))
+           (caldav::*caldav-file* file)
+           (buffer nil))
+      (ensure-directories-exist file)
+      (unwind-protect
+           (progn
+             (with-open-file (out file :direction :output :if-exists :supersede) (format out "#+title: Calendars~%"))
+             (setf buffer (caldav::calendars-buffer))
+             (with-open-file (out file :direction :output :if-exists :supersede) (format out "# changed on disk~%"))
+             (sb-posix:utimes file (+ (get-universal-time) 100) (+ (get-universal-time) 100))
+             (let ((put (caldav::put-into-calendars (lambda (text) (concatenate 'string text (format nil "* Home~%")))
+                                                    nil t)))
+               (is eq :refused put)
+               (true (caldav::not-saved-words put))
+               (true (tuatara.buffer:buffer-modified-p buffer))))
+        (when buffer (tuatara.buffer:kill-buffer buffer))
+        (uiop:delete-directory-tree directory :validate t :if-does-not-exist :ignore)))))
+
 (define-test (caldav new-entry-already-on-the-server-told)
   ;; an entry with a UID the state does not know, whose event is on the server already, is said refused
   (with-cs-state ()
@@ -1580,10 +1603,44 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
                                      (tuatara:yes-or-no-p* 'switching) (t 'held))))
       (dolist (buffer (list began later calendars)) (tuatara.buffer:kill-buffer buffer)))))
 
+(define-test (caldav new-event-taken-from-where-it-began)
+  ;; the form opens once the reading job is taken in, by when another buffer may be the current one; it is
+  ;; still taken from the buffer the command began in
+  (let* ((began (tuatara.buffer:make-buffer "cs-began")) (later (tuatara.buffer:make-buffer "cs-later"))
+         (calendars (tuatara.buffer:make-buffer "cs-calendars")) (shown began) (started '()) (origin nil))
+    (sb-int:encapsulate 'tuatara:current-buffer 'shown (lambda (f) (declare (ignore f)) shown))
+    (sb-int:encapsulate 'caldav::calendars-buffer 'scratch (lambda (f) (declare (ignore f)) calendars))
+    (sb-int:encapsulate 'caldav::calendar-headings 'one
+                        (lambda (f text) (declare (ignore f text)) (list (list "Work"))))
+    (sb-int:encapsulate 'tuatara:org-capture-with 'seen
+                        (lambda (f name target text &key ((:origin given)))
+                          (declare (ignore f name target text))
+                          (setf origin given)))
+    (sb-int:encapsulate 'tuatara:start-job-thread 'held
+                        (lambda (f job work &rest arguments)
+                          (declare (ignore f arguments))
+                          (push (cons job work) started)))
+    (sb-int:encapsulate 'tuatara:take-in-soon 'held (lambda (f &rest arguments) (declare (ignore f arguments))))
+    (unwind-protect
+         (progn
+           (caldav::caldav-event-new)
+           (setf shown later)
+           (destructuring-bind (job . work) (first started)
+             (funcall work job)
+             (caldav::job-take-in job))
+           (is eq began origin))
+      (dolist (name '(tuatara:current-buffer caldav::calendars-buffer caldav::calendar-headings
+                      tuatara:org-capture-with tuatara:start-job-thread tuatara:take-in-soon))
+        (sb-int:unencapsulate name (case name
+                                     (tuatara:current-buffer 'shown) (caldav::calendars-buffer 'scratch)
+                                     (caldav::calendar-headings 'one) (tuatara:org-capture-with 'seen)
+                                     (t 'held))))
+      (dolist (buffer (list began later calendars)) (tuatara.buffer:kill-buffer buffer)))))
+
 (define-test (caldav export-entries-chosen-by-octets)
   ;; the entries written are chosen from point or the selection, octet positions, on the job's thread
   (let ((text (format nil "* Café~%* Two~%** Under~%* Three~%")))
-    (is = 7 (caldav::text-char-index text 8))
+    (is = 7 (tuatara:string-octet-char-index text 8))
     (flet ((titles (region point)
              (mapcar (lambda (e) (tuatara:agenda-entry-get e :title))
                      (caldav::export-chosen-entries "/x/walks.org" text region point))))
@@ -1696,3 +1753,86 @@ user kiwi with the password p\"w: one calendar, /kiwi/home/."
         (sb-int:unencapsulate 'tuatara.defaults::rope-line-hashes 'cs-threads)
         (let ((b (tuatara.buffer:find-buffer "calendars.org")))
           (when b (tuatara.buffer:buffer-mark-saved b) (tuatara.buffer:kill-buffer b)))))))
+
+(define-test (caldav one-sync-at-a-time)
+  ;; a sync asked for while one runs starts no second job; starting one copies no text on the asking thread
+  (with-test-directory (dir)
+    (let* ((org (namestring (merge-pathnames "calendars.org" dir)))
+           (caldav::*caldav-file* org)
+           (caldav::*sync-job* nil)
+           (here sb-thread:*current-thread*)
+           (copied-here 0)
+           (release nil))
+      (alexandria:write-string-into-file (format nil "* Home~%") org)
+      (sb-int:encapsulate 'caldav::sync-work 'cs-held
+                          (lambda (function job text)
+                            (declare (ignore function job text))
+                            (loop until release do (sleep 0.01))))
+      (sb-int:encapsulate 'tuatara.buffer:buffer-string 'cs-here
+                          (lambda (function &rest arguments)
+                            (when (eq sb-thread:*current-thread* here) (incf copied-here))
+                            (apply function arguments)))
+      (unwind-protect
+           (let ((first (caldav::start-sync t)))
+             (true first)
+             (is = 0 copied-here)
+             (false (caldav::start-sync t))
+             (let ((tuatara-user::*caldav-accounts* '((:name "E" :url "https://cal.example.org/" :user "u"))))
+               (with-messages-said (said)
+                 (caldav::caldav-sync)
+                 (true (search "A sync is running" (said)) "~a" (said))))
+             (is eq first caldav::*sync-job*)
+             (setf release t)
+             (loop while (tuatara.runtime:job-running-p first) do (sleep 0.01)))
+        (setf release t)
+        (sb-int:unencapsulate 'caldav::sync-work 'cs-held)
+        (sb-int:unencapsulate 'tuatara.buffer:buffer-string 'cs-here)
+        (let ((b (tuatara.buffer:find-buffer "calendars.org")))
+          (when b (tuatara.buffer:buffer-mark-saved b) (tuatara.buffer:kill-buffer b)))))))
+
+(define-test (caldav quiet-sync-keeps-your-changes-unsaved)
+  ;; events fetched into a calendars' file with changes of yours are put in, not saved, and nothing is asked;
+  ;; a quiet sync into a file changed on disk asks nothing either
+  (with-test-directory (dir)
+    (let* ((org (namestring (merge-pathnames "calendars.org" dir)))
+           (caldav::*caldav-file* org)
+           (on-disk (format nil "* Home~%"))
+           (asked '()))
+      (alexandria:write-string-into-file on-disk org)
+      (dolist (asker '(tuatara:yes-or-no-p* tuatara:y-or-n-p* tuatara:read-key-choice))
+        (sb-int:encapsulate asker 'cs-asked
+                            (lambda (function &rest arguments)
+                              (declare (ignore function))
+                              (push arguments asked)
+                              nil)))
+      (unwind-protect
+           (let ((buffer (caldav::calendars-buffer))
+                 (fetched (lambda (text) (concatenate 'string text (format nil "** Walk~%")))))
+             (tuatara.buffer:buffer-insert buffer (tuatara.buffer:buffer-size buffer) (format nil "Mine~%"))
+             (is eq :not-saved (caldav::put-into-calendars fetched))
+             (true (search "** Walk" (tuatara.buffer:buffer-string buffer)))
+             (true (search "Mine" (tuatara.buffer:buffer-string buffer)))
+             (is string= on-disk (file-text org))
+             (tuatara.buffer:buffer-mark-saved buffer)
+             (alexandria:write-string-into-file (format nil "* Home~%Changed on disk~%") org :if-exists :supersede)
+             (caldav::put-into-calendars (lambda (text) (concatenate 'string text (format nil "** Swim~%"))) nil t)
+             (is equal '() asked))
+        (dolist (asker '(tuatara:yes-or-no-p* tuatara:y-or-n-p* tuatara:read-key-choice))
+          (sb-int:unencapsulate asker 'cs-asked))
+        (let ((b (tuatara.buffer:find-buffer "calendars.org")))
+          (when b (tuatara.buffer:buffer-mark-saved b) (tuatara.buffer:kill-buffer b)))))))
+
+(define-test (caldav requests-not-globbed)
+  ;; a web address holding brackets or braces is one request, never a range curl spreads into several
+  (with-test-directory (dir)
+    (let ((curl (namestring (merge-pathnames "curl" dir)))
+          (given (namestring (merge-pathnames "given" dir))))
+      (alexandria:write-string-into-file
+       (format nil "#!/bin/sh~%printf '%s\\n' \"$@\" > '~a'~%cat > /dev/null~%printf '\\n200\\n'~%" given)
+       curl)
+      (sb-posix:chmod curl #o755)
+      (with-environment-variable ("PATH" (format nil "~a:/usr/bin:/bin" (string-right-trim "/" (namestring dir))))
+        (ignore-errors (caldav::curl-request "GET" "https://cal.example.invalid/a[1-2].ics")))
+      (let ((arguments (uiop:read-file-lines given)))
+        (true (member "--globoff" arguments :test #'string=) "~s" arguments)
+        (is string= "https://cal.example.invalid/a[1-2].ics" (car (last arguments)))))))

@@ -136,8 +136,8 @@ not the server says its length first."
                  (head-file (path-join directory "head")))
              (when body (replace-file body-file body :mode #o600))
              (multiple-value-bind (said ok)
-                 (program-output (append (list curl "--disable" "--silent" "--show-error" "--proto" "=https,http"
-                                               "--max-time" (princ-to-string *request-seconds*)
+                 (program-output (append (list curl "--disable" "--silent" "--show-error" "--globoff"
+                                               "--proto" "=https,http" "--max-time" (princ-to-string *request-seconds*)
                                                "--max-filesize" (princ-to-string *largest-answer*)
                                                "--request" method "--dump-header" head-file
                                                "--write-out" (format nil "~%%{http_code}~%%{errormsg}")

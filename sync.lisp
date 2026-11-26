@@ -65,21 +65,22 @@ into, in the cache."
              (format nil "~a.org" (safe-name (getf subscription :name)))))
 
 (defvar *agenda-paths* nil
-  "The paths of the calendars' file and the subscriptions' files, worked out
-last: (SETTINGS TIME . PATHS), for the settings they were worked out from.")
+  "The paths of the calendars' file and the subscriptions' files there, worked
+out last: (SETTINGS TIME . PATHS), for the settings they were worked out from.")
 
 (defun sync-agenda-files ()
   "The files caldav adds to the agenda: the calendars' file and the
 subscriptions' files, those there. The agenda asks often, as often as it is
-drawn: where they are is worked out again only when the settings change or
-a few seconds have gone."
+drawn: where they are, and which are there, is worked out again only when the
+settings change or a few seconds have gone."
   (let ((settings (list *caldav-file* *caldav-subscriptions*))
         (kept *agenda-paths*))
     (unless (and kept (equal (first kept) settings) (< (- (get-universal-time) (second kept)) 5))
       (setf kept (list* settings (get-universal-time)
-                        (cons (sync-file-path) (mapcar #'subscription-path *caldav-subscriptions*)))
+                        (remove-if-not (lambda (path) (ignore-errors (path-kind path)))
+                                       (cons (sync-file-path) (mapcar #'subscription-path *caldav-subscriptions*))))
             *agenda-paths* kept))
-    (remove-if-not (lambda (path) (ignore-errors (path-kind path))) (cddr kept))))
+    (cddr kept)))
 
 (pushnew 'sync-agenda-files *org-agenda-file-functions*)
 

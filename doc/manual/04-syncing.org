@@ -34,7 +34,10 @@ A sync sends what you changed in an entry and fetches what changed on the server
 since the last sync, then writes it into its entry. Only the lines that differ
 are changed, as one step to undo, and the file is saved. Your own lines in an
 entry (notes, checkboxes, clocks, properties of your own) are kept when the
-server's version is written.
+server's version is written. When the file is open with changes you have not
+saved, the sync writes beside them and leaves the saving to you; its line says
+so. A sync on its own never asks a question. While a sync runs, ~C-c s s~ says
+so and starts no other.
 
 After each sync Tuatara says what it did in one line, and what failed after
 =failed:=. ~C-h e~ shows the messages again. A failed sync is also told as a
@@ -51,7 +54,7 @@ notification, on the desktop and in =*Notifications*= (~C-h N~).
   done with it.
 - Deleted here: nothing happens on the server until ~C-c s d~ asks you. When you
   answer no, the entries are put back.
-- Cancelled here (~C-c C-x C~, keyword =CANCELLED= or =CANCELED=): its event is
+- Cancelled here (~C-c X~, keyword =CANCELLED= or =CANCELED=): its event is
   deleted on the server at the next sync, so it leaves your other devices. The
   entry stays, tagged =removed= and no longer synced. The agenda still shows it,
   cancelled. An entry cancelled before it was ever sent is not sent.

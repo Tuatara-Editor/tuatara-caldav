@@ -17,8 +17,8 @@ Each event or task is one heading. Its UID is kept in the =UID= property.
   menu of the date prompt writes it (~C-c C-s~, then ~C-r~): =<%%(and
   (diary-block 11 10 2026 1 12 2027) (diary-float t 2 2)) 18:00-20:00>=.
 - =EXDATE=, or a time changed alone, is a note in the logbook of the time
-  cancelled or moved. Cancelling one time (~C-c C-x C~) and scheduling one time
-  elsewhere (~C-c C-s~) write the same notes.
+  cancelled or moved. Cancelling one time (~C-c X~ then ~t~) and scheduling one
+  time elsewhere (~C-c C-s~) write the same notes.
 - A rule Org cannot say, such as the last weekday of a month, is each time
   written out within the days kept (a year back, two ahead, at most 500 times),
   with the rule in the =RRULE= property. These times belong to the calendar and
